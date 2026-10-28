@@ -1,0 +1,78 @@
+{
+  "name": "@interfere/landmines",
+  "version": "0.0.0",
+  "description": "Oxlint rules that keep AI-written code honest: real implementations, real signals, no flake masking.",
+  "keywords": [
+    "agents",
+    "ai",
+    "lint",
+    "msw",
+    "oxlint",
+    "oxlint-plugin",
+    "testing"
+  ],
+  "homepage": "https://github.com/interfere-inc/landmines#readme",
+  "bugs": "https://github.com/interfere-inc/landmines/issues",
+  "license": "MIT",
+  "author": "Interfere, Inc.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/interfere-inc/landmines.git",
+    "directory": "packages/landmines"
+  },
+  "files": [
+    "dist",
+    "configs"
+  ],
+  "type": "module",
+  "exports": {
+    "./testing": {
+      "types": "./dist/testing.d.mts",
+      "default": "./dist/testing.mjs"
+    },
+    "./style": {
+      "types": "./dist/style.d.mts",
+      "default": "./dist/style.mjs"
+    },
+    "./structure": {
+      "types": "./dist/structure.d.mts",
+      "default": "./dist/structure.mjs"
+    },
+    "./types": {
+      "types": "./dist/types.d.mts",
+      "default": "./dist/types.mjs"
+    },
+    "./configs/recommended.json": "./configs/recommended.json",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@babel/parser": "8.0.4",
+    "@babel/types": "8.0.4",
+    "@oxlint/plugins": "1.81.0",
+    "oxc-resolver": "11.24.2",
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "oxlint": "1.81.0",
+    "tsdown": "0.23.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  },
+  "peerDependencies": {
+    "oxlint": ">=1.81.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

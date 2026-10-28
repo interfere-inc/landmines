@@ -1,0 +1,478 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["**/dist/**", "**/CHANGELOG.md"],
+  "plugins": [
+    "eslint",
+    "typescript",
+    "unicorn",
+    "import",
+    "node",
+    "promise",
+    "oxc",
+    "vitest",
+  ],
+  "jsPlugins": [
+    {
+      "name": "landmines-testing",
+      "specifier": "./packages/landmines/src/plugins/testing.ts",
+    },
+    {
+      "name": "landmines-style",
+      "specifier": "./packages/landmines/src/plugins/style.ts",
+    },
+    {
+      "name": "landmines-structure",
+      "specifier": "./packages/landmines/src/plugins/structure.ts",
+    },
+    {
+      "name": "landmines-types",
+      "specifier": "./packages/landmines/src/plugins/types.ts",
+    },
+  ],
+  "env": {
+    "builtin": true,
+    "node": true,
+  },
+  "options": {
+    "typeAware": true,
+    "typeCheck": true,
+  },
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error",
+    "style": "error",
+    "nursery": "off",
+    "restriction": "error",
+    "pedantic": "error",
+  },
+  "rules": {
+    "landmines-testing/no-fixed-sleep": "error",
+    "landmines-testing/no-flake-masking": "error",
+    "landmines-testing/no-test-doubles": "error",
+    "landmines-testing/no-unsignaled-poll": "error",
+    "landmines-testing/strict-msw": "error",
+    "landmines-style/no-comments": "error",
+    "landmines-structure/colocated-tests": "error",
+    "landmines-structure/package-exports": "error",
+    "landmines-structure/test-file-names": "error",
+    "landmines-types/no-explicit-return-types": "error",
+    "eslint/no-restricted-exports": "error",
+    "eslint/no-empty": [
+      "error",
+      {
+        "allowEmptyCatch": true,
+      },
+    ],
+    "eslint/no-undef": "error",
+    "eslint/no-unreachable-loop": "error",
+    "eslint/no-useless-assignment": "error",
+    "import/export": "error",
+    "import/named": "error",
+    "promise/no-return-in-finally": "error",
+    "unicorn/no-useless-iterator-to-array": "error",
+    "typescript/no-unnecessary-condition": [
+      "error",
+      {
+        "allowConstantLoopConditions": "only-allowed-literals",
+        "checkTypePredicates": false,
+      },
+    ],
+    "typescript/prefer-optional-chain": [
+      "error",
+      {
+        "requireNullish": true,
+        "checkAny": false,
+        "checkUnknown": false,
+        "checkString": false,
+        "checkNumber": false,
+        "checkBoolean": false,
+        "checkBigInt": false,
+        "allowPotentiallyUnsafeFixesThatModifyTheReturnTypeIKnowWhatImDoing": false,
+      },
+    ],
+    "eslint/no-undefined": "off",
+    "eslint/complexity": "off",
+    "eslint/class-methods-use-this": [
+      "error",
+      {
+        "ignoreClassesWithImplements": "public-fields",
+        "ignoreOverrideMethods": true,
+      },
+    ],
+    "eslint/no-use-before-define": [
+      "error",
+      {
+        "functions": false,
+        "variables": false,
+        "classes": false,
+      },
+    ],
+    "eslint/no-void": [
+      "error",
+      {
+        "allowAsStatement": true,
+      },
+    ],
+    "eslint/no-plusplus": [
+      "error",
+      {
+        "allowForLoopAfterthoughts": true,
+      },
+    ],
+    "unicorn/import-style": [
+      "error",
+      {
+        "styles": {
+          "path": {
+            "named": true,
+          },
+          "node:path": {
+            "named": true,
+          },
+        },
+      },
+    ],
+    "oxc/no-async-await": "off",
+    "oxc/no-optional-chaining": "off",
+    "oxc/no-rest-spread-properties": "off",
+    "vitest/require-test-timeout": "off",
+    "typescript/explicit-function-return-type": "off",
+    "typescript/explicit-module-boundary-types": "off",
+    "typescript/non-nullable-type-assertion-style": "off",
+    "typescript/explicit-member-accessibility": [
+      "error",
+      {
+        "accessibility": "no-public",
+      },
+    ],
+    "typescript/no-namespace": [
+      "error",
+      {
+        "allowDeclarations": true,
+        "allowDefinitionFiles": true,
+      },
+    ],
+    "typescript/no-invalid-void-type": [
+      "error",
+      {
+        "allowAsThisParameter": true,
+        "allowInGenericTypeArguments": true,
+      },
+    ],
+    "node/handle-callback-err": ["error", "^(err|error)$"],
+    "node/no-process-env": [
+      "error",
+      {
+        "allowedVariables": ["NODE_ENV"],
+      },
+    ],
+    "node/no-top-level-await": "off",
+    "import/no-relative-parent-imports": "off",
+    "eslint/capitalized-comments": "off",
+    "eslint/func-name-matching": "error",
+    "eslint/func-style": [
+      "error",
+      "declaration",
+      {
+        "allowArrowFunctions": true,
+        "allowTypeAnnotation": true,
+      },
+    ],
+    "eslint/id-length": "off",
+    "eslint/init-declarations": "off",
+    "eslint/max-params": "off",
+    "eslint/max-statements": "off",
+    "eslint/new-cap": [
+      "error",
+      {
+        "capIsNew": false,
+      },
+    ],
+    "eslint/no-continue": "off",
+    "eslint/no-duplicate-imports": [
+      "error",
+      {
+        "allowSeparateTypeImports": true,
+      },
+    ],
+    "eslint/no-magic-numbers": "off",
+    "eslint/no-nested-ternary": "error",
+    "eslint/no-ternary": "off",
+    "eslint/one-var": ["error", "never"],
+    "eslint/prefer-arrow-callback": [
+      "error",
+      {
+        "allowNamedFunctions": true,
+      },
+    ],
+    "eslint/prefer-const": [
+      "error",
+      {
+        "ignoreReadBeforeAssign": true,
+      },
+    ],
+    "eslint/prefer-object-spread": "error",
+    "eslint/sort-imports": [
+      "error",
+      {
+        "ignoreDeclarationSort": true,
+      },
+    ],
+    "eslint/sort-keys": "off",
+    "import/exports-last": "off",
+    "import/group-exports": "off",
+    "import/no-named-export": "off",
+    "import/no-namespace": "error",
+    "import/no-nodejs-modules": "off",
+    "import/prefer-default-export": "off",
+    "node/callback-return": ["error", ["callback", "cb"]],
+    "node/no-sync": "off",
+    "promise/avoid-new": "off",
+    "promise/prefer-await-to-callbacks": "off",
+    "promise/prefer-await-to-then": "error",
+    "typescript/consistent-type-definitions": "error",
+    "typescript/consistent-type-imports": [
+      "error",
+      {
+        "disallowTypeAnnotations": false,
+      },
+    ],
+    "typescript/dot-notation": [
+      "error",
+      {
+        "allowPrivateClassPropertyAccess": true,
+        "allowIndexSignaturePropertyAccess": true,
+      },
+    ],
+    "typescript/parameter-properties": [
+      "error",
+      {
+        "prefer": "class-property",
+      },
+    ],
+    "unicorn/catch-error-name": "error",
+    "unicorn/filename-case": [
+      "error",
+      {
+        "ignore": ["^\\$"],
+      },
+    ],
+    "unicorn/max-nested-calls": "off",
+    "unicorn/no-await-expression-member": "off",
+    "unicorn/no-nested-ternary": "off",
+    "unicorn/no-null": "off",
+    "unicorn/number-literal-case": "off",
+    "unicorn/prefer-global-this": "error",
+    "unicorn/prefer-reflect-apply": "off",
+    "unicorn/prefer-spread": "error",
+    "unicorn/prefer-ternary": "off",
+    "vitest/consistent-test-it": [
+      "error",
+      {
+        "fn": "test",
+        "withinDescribe": "test",
+      },
+    ],
+    "vitest/max-expects": "off",
+    "vitest/no-duplicate-hooks": "error",
+    "vitest/no-hooks": "off",
+    "vitest/no-importing-vitest-globals": "off",
+    "vitest/prefer-called-once": "off",
+    "vitest/prefer-called-with": "error",
+    "vitest/prefer-describe-function-title": "error",
+    "vitest/prefer-expect-assertions": [
+      "error",
+      {
+        "onlyFunctionsWithExpectInCallback": true,
+        "onlyFunctionsWithExpectInLoop": true,
+      },
+    ],
+    "vitest/prefer-hooks-in-order": "error",
+    "vitest/prefer-import-in-mock": "error",
+    "vitest/prefer-importing-vitest-globals": "error",
+    "vitest/prefer-lowercase-title": [
+      "error",
+      {
+        "ignore": ["describe"],
+      },
+    ],
+    "vitest/prefer-mock-promise-shorthand": "error",
+    "vitest/prefer-mock-return-shorthand": "error",
+    "vitest/prefer-strict-boolean-matchers": "error",
+    "vitest/prefer-strict-equal": "error",
+    "vitest/prefer-to-be-falsy": "off",
+    "vitest/prefer-to-be-truthy": "off",
+    "vitest/require-hook": "off",
+    "vitest/require-top-level-describe": "off",
+    "oxc/no-accumulating-spread": "error",
+    "typescript/no-unnecessary-type-assertion": "off",
+    "oxc/no-async-endpoint-handlers": "off",
+    "eslint/no-underscore-dangle": "error",
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "ignoreRestSiblings": true,
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+      },
+    ],
+    "vitest/valid-title": [
+      "error",
+      {
+        "ignoreTypeOfDescribeName": true,
+      },
+    ],
+    "vitest/valid-expect": [
+      "error",
+      {
+        "maxArgs": 2,
+      },
+    ],
+    "eslint/require-await": "off",
+    "import/max-dependencies": "off",
+    "eslint/max-lines": "off",
+    "eslint/max-lines-per-function": "off",
+    "eslint/max-depth": "off",
+    "eslint/max-classes-per-file": "off",
+    "eslint/max-nested-callbacks": "off",
+    "typescript/prefer-readonly-parameter-types": "off",
+    "vitest/no-conditional-in-test": "off",
+    "vitest/no-conditional-expect": "error",
+    "typescript/no-confusing-void-expression": [
+      "error",
+      {
+        "ignoreArrowShorthand": true,
+        "ignoreVoidOperator": true,
+      },
+    ],
+    "unicorn/no-useless-undefined": [
+      "error",
+      {
+        "checkArguments": false,
+        "checkArrowFunctionBody": false,
+      },
+    ],
+    "typescript/return-await": ["error", "error-handling-correctness-only"],
+    "typescript/prefer-nullish-coalescing": [
+      "error",
+      {
+        "ignorePrimitives": {
+          "string": true,
+          "number": true,
+          "boolean": true,
+        },
+      },
+    ],
+    "typescript/strict-boolean-expressions": [
+      "error",
+      {
+        "allowNullableString": true,
+        "allowNullableBoolean": true,
+        "allowNullableNumber": true,
+      },
+    ],
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-expect-error": false,
+      },
+    ],
+    "typescript/strict-void-return": "off",
+    "typescript/switch-exhaustiveness-check": [
+      "error",
+      {
+        "considerDefaultExhaustiveForUnions": true,
+      },
+    ],
+  },
+  "overrides": [
+    {
+      "files": ["**/*.{ts,tsx,mts,cts}"],
+      "rules": {
+        "eslint/no-useless-return": "off",
+      },
+    },
+    {
+      "files": ["**/*.config.{ts,mts,mjs,js}"],
+      "rules": {
+        "import/no-default-export": "off",
+      },
+    },
+    {
+      "files": ["**/*.d.ts"],
+      "rules": {
+        "import/unambiguous": "off",
+      },
+    },
+    {
+      "files": [
+        "**/keys.ts",
+        "**/env.ts",
+        "**/config/env.ts",
+        "**/*.config.{ts,mts,mjs,js}",
+        "**/*.test.*",
+        "**/*.fixture.*",
+        "**/*.test-utils.*",
+        "**/test/**",
+      ],
+      "rules": {
+        "node/no-process-env": "off",
+      },
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "vitest/require-hook": "error",
+      },
+    },
+    {
+      "files": ["**/*.e2e.ts"],
+      "rules": {
+        "vitest/prefer-each": "off",
+        "unicorn/prefer-dom-node-text-content": "off",
+      },
+    },
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.e2e.ts",
+        "**/*.fixture.ts",
+        "**/*.fixture.tsx",
+        "**/*.test-utils.ts",
+        "**/*.test-utils.tsx",
+      ],
+      "rules": {
+        "typescript/no-unsafe-type-assertion": "off",
+      },
+    },
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.e2e.ts",
+        "**/*.fixture.ts",
+        "**/*.fixture.tsx",
+        "**/*.test-utils.ts",
+        "**/*.test-utils.tsx",
+        "**/test/**",
+      ],
+      "rules": {
+        "unicorn/consistent-function-scoping": [
+          "error",
+          {
+            "checkArrowFunctions": false,
+          },
+        ],
+      },
+    },
+    {
+      "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      "rules": {
+        "eslint/no-undef": "off",
+        "typescript/consistent-return": "off",
+      },
+    },
+  ],
+}
