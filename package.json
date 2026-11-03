@@ -13,8 +13,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "changeset": "changeset",
-    "version": "changeset version",
-    "release": "turbo run build && changeset publish"
+    "version": "changeset version"
   },
   "devDependencies": {
     "@changesets/changelog-github": "1.0.1",
