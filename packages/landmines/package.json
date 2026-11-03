@@ -1,6 +1,6 @@
 {
   "name": "@interfere/landmines",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Oxlint rules that keep AI-written code honest: real implementations, real signals, no flake masking.",
   "keywords": [
     "agents",
