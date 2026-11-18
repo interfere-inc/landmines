@@ -1,5 +1,5 @@
 import { defineRule } from "@oxlint/plugins";
-import type { ESTree } from "@oxlint/plugins";
+import type { ESTree, Scope, SourceCode } from "@oxlint/plugins";
 
 import { allowlistSchema, reportAllowed } from "../lib/allowlist.ts";
 
@@ -26,7 +26,30 @@ function rootName(initial: ESTree.Node) {
     node = node.type === "MemberExpression" ? node.object : node.callee;
   }
 
-  return node.type === "Identifier" ? node.name : null;
+  return node.type === "Identifier" ? node : null;
+}
+
+function plainFunction(source: SourceCode, node: ESTree.Node, name: string) {
+  for (
+    let scope: Scope | null = source.getScope(node);
+    scope !== null;
+    scope = scope.upper
+  ) {
+    const variable = scope.set.get(name);
+
+    if (variable) {
+      return variable.defs.every(
+        ({ type, node: definition }) =>
+          type === "FunctionName" ||
+          type === "Parameter" ||
+          (definition.type === "VariableDeclarator" &&
+            (definition.init?.type === "ArrowFunctionExpression" ||
+              definition.init?.type === "FunctionExpression")),
+      );
+    }
+  }
+
+  return false;
 }
 
 function memberName(node: ESTree.Node) {
@@ -37,13 +60,14 @@ function memberName(node: ESTree.Node) {
     : null;
 }
 
-function testCall(node: ESTree.CallExpression) {
-  const name = rootName(node.callee);
+function testCall(source: SourceCode, node: ESTree.CallExpression) {
+  const root = rootName(node.callee);
   const member = memberName(node.callee);
 
   return (
-    name !== null &&
-    testFunctions.has(name) &&
+    root !== null &&
+    testFunctions.has(root.name) &&
+    !plainFunction(source, root, root.name) &&
     member !== "each" &&
     member !== "for" &&
     member !== "extend" &&
@@ -105,7 +129,7 @@ export const noFlakeMasking = defineRule({
           return;
         }
 
-        if (!testCall(node)) {
+        if (!testCall(context.sourceCode, node)) {
           return;
         }
 

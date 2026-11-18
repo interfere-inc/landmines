@@ -68,6 +68,10 @@ const timeouts = [
   'test.each([1])("loads %i", async () => {}, 20_000);',
   'test.skipIf(ci)("loads", async () => {}, 20_000);',
   'describe("loader", { timeout: 60_000 }, () => {});',
+  'describe("x", () => {}, 5000);',
+  'import { describe } from "vitest";\ndescribe("x", () => {}, 5000);',
+  'import { test as base } from "vitest";\nconst test = base.extend({});\ntest("x", async () => {}, 5000);',
+  'import { test } from "./fixtures";\ntest("x", async () => {}, 5000);',
   "vi.setConfig({ testTimeout: 45_000 });",
   "vi.setConfig({ hookTimeout: 45_000 });",
   "export default defineConfig({ test: { testTimeout: 30_000, hookTimeout: 60_000 } });",
@@ -88,6 +92,10 @@ const valid = [
   "queue.retry({ delaySeconds: 30 });",
   "const policy = { retry: { maxAttempts: 1 } };",
   "vi.setConfig({ fakeTimers: { now: 0 } });",
+  "function describe(a, b, c) {}\ndescribe(1, 2, 3);",
+  "const describe = (a, b, c) => {};\ndescribe(1, 2, 3);",
+  "const collect = (page) => items.map((item, i) => describe(page, item, annots.get(i)));\nconst describe = (a, b, c) => {};",
+  "function run(it) { it(1, 2, 3); }",
 ];
 
 test.each(lintBatch(retries, false, "testing", config))(
