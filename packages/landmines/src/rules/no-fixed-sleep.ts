@@ -110,11 +110,19 @@ function resolvesAfterTimeout(node: ESTree.NewExpression) {
     return handler.name === resolve.name;
   }
 
+  if (
+    handler?.type !== "ArrowFunctionExpression" &&
+    handler?.type !== "FunctionExpression"
+  ) {
+    return false;
+  }
+
+  const settle = scheduled(handler.body);
+
   return (
-    handler?.type === "ArrowFunctionExpression" &&
-    handler.body.type === "CallExpression" &&
-    handler.body.callee.type === "Identifier" &&
-    handler.body.callee.name === resolve.name
+    settle?.type === "CallExpression" &&
+    settle.callee.type === "Identifier" &&
+    settle.callee.name === resolve.name
   );
 }
 
