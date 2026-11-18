@@ -74,9 +74,9 @@ list only shrinks.
 
 ### `landmines-style`
 
-| Rule          | What it stops                                                                                                                                                                                                                                                   |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `no-comments` | Prose comments. Allowed: functional directives (`oxlint-disable`, `@ts-expect-error`, `/* @__PURE__ */`, licence headers…), single-line `// WARNING:` comments for dangerous recurring footguns, and TSDoc on exported public API. Rationale belongs in the PR. |
+| Rule          | What it stops                                                                                                                                                                                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `no-comments` | Prose comments. Allowed: functional directives (`oxlint-disable`, `@ts-expect-error`, `/* @__PURE__ */`, licence headers…), single-line `// WARNING:` comments for dangerous recurring footguns (configurable with `allow`), and TSDoc on exported public API. Rationale belongs in the PR. |
 
 Pass `publicApi` (regular expressions matched against the file path) to allow
 TSDoc only in your published packages:
@@ -84,6 +84,17 @@ TSDoc only in your published packages:
 ```json
 {
   "landmines-style/no-comments": ["error", { "publicApi": ["/packages/sdk/"] }]
+}
+```
+
+Pass `allow` to choose which single-line comment prefixes are kept. It defaults
+to `["WARNING"]`; add `"SAFETY"` to keep the `// SAFETY:` comments that
+[anti-slop](https://github.com/dmmulroy/anti-slop)'s
+`require-safety-comment-for-type-assertion` requires:
+
+```json
+{
+  "landmines-style/no-comments": ["error", { "allow": ["WARNING", "SAFETY"] }]
 }
 ```
 
