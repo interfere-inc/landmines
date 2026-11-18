@@ -29,6 +29,8 @@ const sleeps = [
   "test.each([1])('x %s', async () => { await scheduler.wait(1); });",
   "test.concurrent('x', async () => { await scheduler.wait(1); });",
   "it.skipIf(ci)('x', async function () { await scheduler.wait(1); });",
+  "test('x', async () => { await new Promise((resolve) => setTimeout(() => { resolve(); }, 100)); });",
+  "test('x', async () => { await new Promise((resolve) => setTimeout(function () { resolve(); }, 100)); });",
 ];
 
 const signals = [
