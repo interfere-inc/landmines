@@ -72,6 +72,23 @@ and ratchet down:
 The rule reports when a file has fewer violations than its allowance, so the
 list only shrinks.
 
+`no-fixed-sleep` also reports sleeps in callbacks that run while the test
+waits, such as `act(async () => …)` or `.then(async () => …)`. Callbacks passed
+to other calls, like `page.route` handlers, are left alone. Pass `runNow` to
+replace the default callee names (`act`, `waitFor`, `then`, `catch`, `finally`,
+`step`), matched against a call's function or method name:
+
+```json
+{
+  "landmines-testing/no-fixed-sleep": [
+    "error",
+    {
+      "runNow": ["act", "waitFor", "then", "catch", "finally", "step", "within"]
+    }
+  ]
+}
+```
+
 ### `landmines-style`
 
 | Rule          | What it stops                                                                                                                                                                                                                                                                               |

@@ -1,7 +1,15 @@
 import { defineRule } from "@oxlint/plugins";
 import type { ESTree } from "@oxlint/plugins";
 
-import { allowlistSchema, reportAllowed } from "../lib/allowlist.ts";
+import { z } from "zod";
+
+import { allowlistProperties, reportAllowed } from "../lib/allowlist.ts";
+
+const defaultRunNow = ["act", "waitFor", "then", "catch", "finally", "step"];
+
+const noFixedSleepOptions = z
+  .tuple([z.object({ runNow: z.array(z.string()).optional() })])
+  .or(z.tuple([]));
 
 const testCallees = new Set([
   "test",
@@ -49,7 +57,22 @@ const calleeRoot: (node: ESTree.Node) => string | undefined = (node) => {
   return node.type === "Identifier" ? node.name : undefined;
 };
 
-function inTestBody(node: ESTree.Node) {
+function calleeName(node: ESTree.Node) {
+  if (node.type === "Identifier") {
+    return node.name;
+  }
+
+  return node.type === "MemberExpression" &&
+    !node.computed &&
+    node.property.type === "Identifier"
+    ? node.property.name
+    : undefined;
+}
+
+const inTestBody: (
+  node: ESTree.Node,
+  runNow: ReadonlySet<string>,
+) => boolean = (node, runNow) => {
   let current: ESTree.Node | null = node.parent;
 
   while (
@@ -63,11 +86,16 @@ function inTestBody(node: ESTree.Node) {
 
   const call = current?.parent;
 
-  return (
-    call?.type === "CallExpression" &&
-    testCallees.has(calleeRoot(call.callee) ?? "")
-  );
-}
+  if (call?.type !== "CallExpression") {
+    return false;
+  }
+
+  if (testCallees.has(calleeRoot(call.callee) ?? "")) {
+    return true;
+  }
+
+  return runNow.has(calleeName(call.callee) ?? "") && inTestBody(call, runNow);
+};
 
 function scheduled(body: ESTree.Node | null) {
   if (body?.type !== "BlockStatement") {
@@ -129,7 +157,16 @@ function resolvesAfterTimeout(node: ESTree.NewExpression) {
 export const noFixedSleep = defineRule({
   meta: {
     type: "problem",
-    schema: allowlistSchema,
+    schema: [
+      {
+        type: "object",
+        properties: {
+          ...allowlistProperties,
+          runNow: { type: "array", items: { type: "string" } },
+        },
+        additionalProperties: false,
+      },
+    ],
     docs: {
       description:
         "Disallow awaiting a fixed real-time sleep in a test or hook body.",
@@ -142,6 +179,8 @@ export const noFixedSleep = defineRule({
     },
   },
   create(context) {
+    const [options] = noFixedSleepOptions.parse(context.options);
+    const runNow = new Set(options?.runNow ?? defaultRunNow);
     const timers = new Set<string>();
     const sleeps: ESTree.Node[] = [];
     let fakeTimers = false;
@@ -188,7 +227,7 @@ export const noFixedSleep = defineRule({
         }
       },
       AwaitExpression(node) {
-        if (isSleep(node.argument) && inTestBody(node)) {
+        if (isSleep(node.argument) && inTestBody(node, runNow)) {
           sleeps.push(node);
         }
       },
