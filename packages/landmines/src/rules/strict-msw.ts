@@ -81,19 +81,65 @@ function serverFactory(source: SourceCode, node: ESTree.Node) {
   return factories.size === 1 && factory !== undefined ? factory : null;
 }
 
-function strict(node: ESTree.Node | undefined) {
+function keyName(property: ESTree.ObjectProperty) {
+  if (property.computed) {
+    return null;
+  }
+
+  if (property.key.type === "Identifier") {
+    return property.key.name;
+  }
+
+  return property.key.type === "Literal" &&
+    typeof property.key.value === "string"
+    ? property.key.value
+    : null;
+}
+
+const unhandledOptions = new Set(["onUnhandledRequest", "onUnhandledFrame"]);
+
+function inlineHandler(node: ESTree.Node) {
+  return (
+    node.type === "ArrowFunctionExpression" ||
+    node.type === "FunctionExpression"
+  );
+}
+
+function namedHandler(source: SourceCode, node: ESTree.Node) {
+  if (node.type !== "Identifier") {
+    return false;
+  }
+
+  const variable = variableOf(source, node, node.name);
+
+  return (
+    variable !== null &&
+    variable.defs.length > 0 &&
+    variable.defs.every(
+      ({ type }) => type === "FunctionName" || type === "Variable",
+    ) &&
+    assignedValues(variable).every((value) => inlineHandler(value)) &&
+    variable.defs.some(
+      ({ type, node: definition }) =>
+        type === "FunctionName" ||
+        (definition.type === "VariableDeclarator" &&
+          definition.init !== null &&
+          inlineHandler(definition.init)),
+    )
+  );
+}
+
+function strict(source: SourceCode, node: ESTree.Node | undefined) {
   return (
     node?.type === "ObjectExpression" &&
     node.properties.some(
       (property) =>
         property.type === "Property" &&
-        !property.computed &&
-        property.key.type === "Identifier" &&
-        property.key.name === "onUnhandledRequest" &&
+        unhandledOptions.has(keyName(property) ?? "") &&
         ((property.value.type === "Literal" &&
           property.value.value === "error") ||
-          property.value.type === "ArrowFunctionExpression" ||
-          property.value.type === "FunctionExpression"),
+          inlineHandler(property.value) ||
+          namedHandler(source, property.value)),
     )
   );
 }
@@ -108,7 +154,7 @@ export const strictMsw = defineRule({
     },
     messages: {
       lenient:
-        'Start MSW with { onUnhandledRequest: "error" }. Add a handler for every request the test makes, with passthrough() for local origins the test owns.',
+        'Start MSW with { onUnhandledFrame: "error" } (msw 3) or { onUnhandledRequest: "error" } (msw 2). Add a handler for every request the test makes, with passthrough() for local origins the test owns.',
       stale:
         "This file now has {{count}} lenient MSW starts; lower its strict-msw allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0.",
     },
@@ -135,7 +181,7 @@ export const strictMsw = defineRule({
         if (
           factory !== null &&
           starters.get(factory) === callee.property.name &&
-          !strict(node.arguments[0])
+          !strict(source, node.arguments[0])
         ) {
           lenientStarts.push(node);
         }

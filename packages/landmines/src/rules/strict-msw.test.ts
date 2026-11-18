@@ -50,6 +50,7 @@ const lenient = [
   `${server}const network = setupServer(); network.listen();`,
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest: "bypass" });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest: "warn" });`,
+  `${server}const network = setupServer(); network.listen({ "onUnhandledRequest": "warn" });`,
   `${server}const network = setupServer(); network.listen({ quiet: true });`,
   `${server}setupServer().listen({ onUnhandledRequest: "bypass" });`,
   `${server}const network = setupServer(); export function start() { network.listen(); }`,
@@ -57,11 +58,20 @@ const lenient = [
   `${worker}let network; network = setupWorker(); await network.start({ quiet: true });`,
   `${worker}let network: ReturnType<typeof setupWorker> | undefined;\nexport async function mount() { network = setupWorker(); await network.start({ onUnhandledRequest: "bypass" }); }\nexport function unmount() { network = undefined; }`,
   'import { setupServer as setup } from "msw/node";\nconst network = setup(); network.listen();',
+  `${server}const network = setupServer(); network.listen({ onUnhandledFrame: "warn" });`,
+  `${worker}const network = setupWorker(); await network.start({ onUnhandledFrame: "bypass" });`,
+  `${server}const mode = "warn";\nconst network = setupServer(); network.listen({ onUnhandledRequest: mode });`,
+  `${server}let handle = () => {};\nhandle = "bypass";\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
+  `${server}import { handle } from "./handle";\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledFrame: missing });`,
+  `${server}export function start(handle) { setupServer().listen({ onUnhandledFrame: handle }); }`,
 ];
 
 const strict = [
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest: "error" });`,
   `${server}setupServer().listen({ onUnhandledRequest: "error" });`,
+  `${server}const network = setupServer(); network.listen({ "onUnhandledRequest": "error" });`,
+  `${server}const network = setupServer(); network.listen({ "onUnhandledFrame": "error" });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest(request, print) { print.error(); } });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest: (request) => { unhandled.push(request.url); } });`,
   `${worker}const network = setupWorker(); await network.start({ quiet: true, onUnhandledRequest: "error" });`,
@@ -70,6 +80,11 @@ const strict = [
   "const server = createTestHarness(); await server.listen();",
   "function setupServer() { return { listen() {} }; }\nsetupServer().listen();",
   `${worker}export const network = setupWorker();`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledFrame: "error" });`,
+  `${worker}const network = setupWorker(); await network.start({ onUnhandledFrame: "error" });`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledFrame({ defaults }) { defaults.error(); } });`,
+  `${server}function handle(request, print) { print.error(); }\nconst network = setupServer(); network.listen({ onUnhandledRequest: handle });`,
+  `${server}const handle = ({ defaults }) => { defaults.error(); };\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
 ];
 
 test.each(lintBatch(lenient, false, "testing", config))(
@@ -77,6 +92,7 @@ test.each(lintBatch(lenient, false, "testing", config))(
   (_code, result) => {
     expect(result.status).toBe(1);
     expect(result.output).toContain(String.raw`onUnhandledRequest: \"error\"`);
+    expect(result.output).toContain(String.raw`onUnhandledFrame: \"error\"`);
   },
 );
 

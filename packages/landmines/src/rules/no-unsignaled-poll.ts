@@ -131,10 +131,11 @@ function assertsRecorder(node: ESTree.Node) {
 function pollsLength(node: ESTree.CallExpression, value: ESTree.Node) {
   const { parent } = node;
   const names = path(value);
+  const matcher =
+    parent.type === "MemberExpression" ? (propertyName(parent) ?? "") : "";
 
   return (
-    parent.type === "MemberExpression" &&
-    propertyName(parent) === "toHaveLength" &&
+    (matcher === "toHaveLength" || spyMatchers.test(matcher)) &&
     names !== null &&
     !names.includes("current")
   );

@@ -29,16 +29,27 @@ function isDirective(comment: Comment) {
   );
 }
 
-function isWarning(comment: Comment) {
+function isAllowed(comment: Comment, prefixes: readonly string[]) {
+  const value = comment.value.trimStart();
+
   return (
     comment.type === "Line" &&
     comment.loc.start.line === comment.loc.end.line &&
-    /^\s*WARNING:\s*\S/u.test(comment.value)
+    prefixes.some(
+      (prefix) =>
+        value.startsWith(`${prefix}:`) &&
+        value.slice(prefix.length + 1).trim() !== "",
+    )
   );
 }
 
 const noCommentsOptions = z
-  .tuple([z.object({ publicApi: z.array(z.string()).optional() })])
+  .tuple([
+    z.object({
+      publicApi: z.array(z.string()).optional(),
+      allow: z.array(z.string().min(1)).optional(),
+    }),
+  ])
   .or(z.tuple([]));
 
 export const noComments = defineRule({
@@ -49,13 +60,14 @@ export const noComments = defineRule({
         type: "object",
         properties: {
           publicApi: { type: "array", items: { type: "string" } },
+          allow: { type: "array", items: { type: "string", minLength: 1 } },
         },
         additionalProperties: false,
       },
     ],
     docs: {
       description:
-        "Allow only functional directives, single-line WARNING: footguns, and exported public API TSDoc.",
+        "Allow only functional directives, single-line comments with an allowed prefix such as WARNING:, and exported public API TSDoc.",
     },
     messages: {
       forbidden:
@@ -67,6 +79,7 @@ export const noComments = defineRule({
 
     const [options] = noCommentsOptions.parse(context.options);
     const filename = context.physicalFilename.replaceAll("\\", "/");
+    const prefixes = options?.allow ?? ["WARNING"];
 
     const publicFile =
       options?.publicApi === undefined ||
@@ -259,7 +272,7 @@ export const noComments = defineRule({
         for (const comment of source.getAllComments()) {
           if (
             !isDirective(comment) &&
-            !isWarning(comment) &&
+            !isAllowed(comment, prefixes) &&
             !documented.has(comment.range[0])
           ) {
             context.report({ loc: comment.loc, messageId: "forbidden" });

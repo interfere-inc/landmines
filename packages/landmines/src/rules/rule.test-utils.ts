@@ -165,7 +165,8 @@ export function lintBatch(codes: readonly string[], ...options: LintOptions) {
 }
 
 interface RuleOptions {
-  allow: Record<string, number>;
+  allow?: Record<string, number>;
+  runNow?: string[];
 }
 
 export function ruleConfiguration(

@@ -29,6 +29,17 @@ const sleeps = [
   "test.each([1])('x %s', async () => { await scheduler.wait(1); });",
   "test.concurrent('x', async () => { await scheduler.wait(1); });",
   "it.skipIf(ci)('x', async function () { await scheduler.wait(1); });",
+  "test('x', async () => { await new Promise((resolve) => setTimeout(() => { resolve(); }, 100)); });",
+  "test('x', async () => { await new Promise((resolve) => setTimeout(function () { resolve(); }, 100)); });",
+  "it('x', async () => { await act(async () => { release(); await new Promise((resolve) => setTimeout(resolve, 50)); }); });",
+  "it('x', () => act(async () => { await scheduler.wait(1); }));",
+  "test('x', async () => { await React.act(async () => { await act(async () => { await scheduler.wait(1); }); }); });",
+  "test('x', async () => { await waitFor(async () => { await scheduler.wait(1); expect(ready).toBe(true); }); });",
+  "test('x', async () => { await load().then(async () => { await Bun.sleep(5); }); });",
+  "beforeEach(() => load().catch(async () => { await scheduler.wait(1); }));",
+  "afterEach(() => load().finally(async () => { await scheduler.wait(1); }));",
+  "test('x', async () => { await act(() => load().then(async () => { await scheduler.wait(1); })); });",
+  "test('x', async () => { await test.step('open', async () => { await scheduler.wait(1); }); });",
 ];
 
 const signals = [
@@ -42,6 +53,12 @@ const signals = [
   "test('x', async () => { await new Promise((resolve) => { emitter.once('done', resolve); }); });",
   'import { setImmediate } from "node:timers/promises"; test("x", async () => { await setImmediate(); });',
   "test('x', async () => { const timer = setTimeout(cancel, 10); await work(); clearTimeout(timer); });",
+  "test('x', async ({ page }) => { await page.route(url, async (route) => { await scheduler.wait(300); await route.fulfill({ status: 200 }); }); });",
+  "test('x', async () => { await server.listen(async () => { await scheduler.wait(10); }); });",
+  "beforeEach(async () => { await run(async () => { await scheduler.wait(10); }); });",
+  "test('x', async () => { await act(async () => { serve(async () => { await scheduler.wait(10); return new Response(); }); }); });",
+  "async function settle() { await act(async () => { await scheduler.wait(1); }); } test('x', async () => { await settle(); });",
+  "act(async () => { await scheduler.wait(1); });",
 ];
 
 test.each(
@@ -56,6 +73,35 @@ test.each(
   lintBatch(signals, false, "testing", configuration(), "fixture.test.ts"),
 )("allows signals, fake timers, and simulated latency: %s", (_, result) => {
   expect(result.status).toBe(0);
+});
+
+test("reports sleeps in callbacks of configured run-now callees", () => {
+  const result = lint(
+    "test('x', async () => { await within(async () => { await scheduler.wait(1); }); });",
+    false,
+    "testing",
+    ruleConfiguration(directory, "testing/no-fixed-sleep", {
+      runNow: ["within"],
+    }),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Replace this fixed sleep with a signal");
+});
+
+test("replaces the default run-now callees when configured", () => {
+  expect(
+    lint(
+      "test('x', async () => { await act(async () => { await scheduler.wait(1); }); });",
+      false,
+      "testing",
+      ruleConfiguration(directory, "testing/no-fixed-sleep", {
+        runNow: ["within"],
+      }),
+      "fixture.test.ts",
+    ).status,
+  ).toBe(0);
 });
 
 const twoSleeps =

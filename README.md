@@ -51,10 +51,10 @@ Tests that can't lie.
 | Rule                 | What it stops                                                                                                                                                                                                                                 |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `no-test-doubles`    | Replacing dependency behaviour in tests: module mocks, `vi.fn(impl)`, stubbed globals, patched prototypes, hand-written bindings and fake responses. Use the real implementation and MSW for the network. Observation-only spies are allowed. |
-| `strict-msw`         | Starting MSW without `onUnhandledRequest: "error"`, so unmocked requests silently reach the network.                                                                                                                                          |
+| `strict-msw`         | Starting MSW without `onUnhandledFrame: "error"` (msw 3) or `onUnhandledRequest: "error"` (msw 2), so unmocked requests reach the network.                                                                                                    |
 | `no-fixed-sleep`     | Awaiting a fixed real-time delay in a test or hook. Await the operation or a signal it emits.                                                                                                                                                 |
 | `no-unsignaled-poll` | `expect.poll` and `vi.waitFor` on request recorders and spy state, which race a deadline instead of awaiting an event.                                                                                                                        |
-| `no-flake-masking`   | Test retries and raised timeouts. A test that passes on rerun is a flake to fix.                                                                                                                                                              |
+| `no-flake-masking`   | Test retries and raised timeouts, per test or in Vitest config. A test that passes on rerun is a flake to fix.                                                                                                                                |
 
 `no-fixed-sleep`, `strict-msw` and `no-flake-masking` accept a per-file
 allowlist with an exact count, so you can adopt them in an existing codebase
@@ -72,11 +72,28 @@ and ratchet down:
 The rule reports when a file has fewer violations than its allowance, so the
 list only shrinks.
 
+`no-fixed-sleep` also reports sleeps in callbacks that run while the test
+waits, such as `act(async () => …)` or `.then(async () => …)`. Callbacks passed
+to other calls, like `page.route` handlers, are left alone. Pass `runNow` to
+replace the default callee names (`act`, `waitFor`, `then`, `catch`, `finally`,
+`step`), matched against a call's function or method name:
+
+```json
+{
+  "landmines-testing/no-fixed-sleep": [
+    "error",
+    {
+      "runNow": ["act", "waitFor", "then", "catch", "finally", "step", "within"]
+    }
+  ]
+}
+```
+
 ### `landmines-style`
 
-| Rule          | What it stops                                                                                                                                                                                                                                                   |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `no-comments` | Prose comments. Allowed: functional directives (`oxlint-disable`, `@ts-expect-error`, `/* @__PURE__ */`, licence headers…), single-line `// WARNING:` comments for dangerous recurring footguns, and TSDoc on exported public API. Rationale belongs in the PR. |
+| Rule          | What it stops                                                                                                                                                                                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `no-comments` | Prose comments. Allowed: functional directives (`oxlint-disable`, `@ts-expect-error`, `/* @__PURE__ */`, licence headers…), single-line `// WARNING:` comments for dangerous recurring footguns (configurable with `allow`), and TSDoc on exported public API. Rationale belongs in the PR. |
 
 Pass `publicApi` (regular expressions matched against the file path) to allow
 TSDoc only in your published packages:
@@ -84,6 +101,17 @@ TSDoc only in your published packages:
 ```json
 {
   "landmines-style/no-comments": ["error", { "publicApi": ["/packages/sdk/"] }]
+}
+```
+
+Pass `allow` to choose which single-line comment prefixes are kept. It defaults
+to `["WARNING"]`; add `"SAFETY"` to keep the `// SAFETY:` comments that
+[anti-slop](https://github.com/dmmulroy/anti-slop)'s
+`require-safety-comment-for-type-assertion` requires:
+
+```json
+{
+  "landmines-style/no-comments": ["error", { "allow": ["WARNING", "SAFETY"] }]
 }
 ```
 

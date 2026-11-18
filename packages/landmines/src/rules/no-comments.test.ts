@@ -8,7 +8,7 @@ import { lintBatch } from "./rule.test-utils";
 
 const directory = mkdtempSync(join(tmpdir(), "oxlint-comments-"));
 
-function createConfig(options?: { publicApi: string[] }) {
+function createConfig(options?: { publicApi?: string[]; allow?: string[] }) {
   const config = join(directory, `${crypto.randomUUID()}.json`);
 
   writeFileSync(
@@ -34,6 +34,8 @@ function createConfig(options?: { publicApi: string[] }) {
 
 const config = createConfig({ publicApi: ["/packages/public/"] });
 const defaultConfig = createConfig();
+const safetyConfig = createConfig({ allow: ["WARNING", "SAFETY"] });
+const safetyOnlyConfig = createConfig({ allow: ["SAFETY"] });
 
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
 
@@ -80,6 +82,7 @@ const forbidden = [
   "// This mentions @ts-ignore but is prose.\nexport const count = 1;",
   "// prettier-ignore-this-explanation\nexport const count = 1;",
   "// webpack is the bundler\nexport const count = 1;",
+  "// SAFETY: the caller validated the payload.\nexport const value = input as Payload;",
   "export const view = <div>{/* Explain the view */}</div>;",
 ];
 
@@ -206,4 +209,68 @@ test.each(
   ),
 )("rejects exported documentation outside publicApi: %s", (_code, result) => {
   expect(result.status).toBe(1);
+});
+
+test.each(
+  lintBatch(
+    [
+      "// WARNING: Retrying this operation charges the customer twice.\ncharge();",
+      "// SAFETY: the caller validated the payload.\nexport const value = input as Payload;",
+      "export const value =\n  // SAFETY: the caller validated the payload.\n  input as Payload;",
+    ],
+    true,
+    "style",
+    safetyConfig,
+  ),
+)("preserves allowed comment prefixes: %s", (code, result) => {
+  expect(result.status).toBe(0);
+  expect(result.code).toBe(code);
+});
+
+test.each(
+  lintBatch(
+    [
+      "// SAFETY:\nexport const value = input as Payload;",
+      "// safety: the caller validated the payload.\nexport const value = input as Payload;",
+      "/* SAFETY: the caller validated the payload. */\nexport const value = input as Payload;",
+      "/* SAFETY: the caller validated\nthe payload. */\nexport const value = input as Payload;",
+      "// SAFETY: the caller validated the payload.\n// More rationale\nexport const value = input as Payload;",
+      "// SAFETYNET: the caller validated the payload.\nexport const value = input as Payload;",
+      "// NOTE: the caller validated the payload.\nexport const value = input as Payload;",
+    ],
+    true,
+    "style",
+    safetyConfig,
+  ),
+)("rejects comments outside allowed prefixes: %s", (_code, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Remove this comment");
+});
+
+test.each(
+  lintBatch(
+    [
+      "// WARNING: Retrying this operation charges the customer twice.\ncharge();",
+    ],
+    true,
+    "style",
+    safetyOnlyConfig,
+  ),
+)("rejects WARNING: when allow omits it: %s", (_code, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Remove this comment");
+});
+
+test.each(
+  lintBatch(
+    [
+      "// SAFETY: the caller validated the payload.\nexport const value = input as Payload;",
+    ],
+    true,
+    "style",
+    safetyOnlyConfig,
+  ),
+)("allows SAFETY: when allow lists only it: %s", (code, result) => {
+  expect(result.status).toBe(0);
+  expect(result.code).toBe(code);
 });
