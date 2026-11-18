@@ -25,6 +25,7 @@ const tauriMockMethods = new Set([
 const frameworkReplacements = new Set([
   "stubGlobal",
   "mock",
+  "module",
   "doMock",
   "unstable_mockModule",
   "importMock",
@@ -516,8 +517,50 @@ function namespaceImport(
   return false;
 }
 
+function bunImport(
+  source: SourceCode,
+  initial: ESTree.Node,
+  names: readonly string[],
+) {
+  const node = resolvedConstant(source, initial);
+
+  if (node.type === "MemberExpression") {
+    return (
+      names.includes(propertyName(source, node) ?? "") &&
+      namespaceImport(source, node.object, "bun:test")
+    );
+  }
+
+  const reference = destructuredReference(source, node);
+
+  if (reference) {
+    return (
+      names.includes(reference.property) &&
+      namespaceImport(source, reference.object, "bun:test")
+    );
+  }
+
+  return (
+    lexicalVariable(source, node)?.defs.some(
+      ({ node: definition, parent }) =>
+        definition.type === "ImportSpecifier" &&
+        parent?.type === "ImportDeclaration" &&
+        parent.source.value === "bun:test" &&
+        names.includes(
+          definition.imported.type === "Identifier"
+            ? definition.imported.name
+            : definition.imported.value,
+        ),
+    ) ?? false
+  );
+}
+
 function framework(source: SourceCode, initial: ESTree.Node) {
   const node = resolvedConstant(source, initial);
+
+  if (bunImport(source, node, ["vi", "jest", "mock"])) {
+    return true;
+  }
 
   if (
     node.type === "MemberExpression" &&
@@ -578,6 +621,10 @@ function jestFramework(source: SourceCode, callee: ESTree.Node) {
     return false;
   }
 
+  if (bunImport(source, target.object, ["vi", "jest"])) {
+    return true;
+  }
+
   const node = resolvedConstant(source, target.object);
 
   if (node.type !== "Identifier") {
@@ -611,6 +658,10 @@ function replacementMethod(source: SourceCode, node: ESTree.Node) {
 
   while (!visited.has(target)) {
     visited.add(target);
+
+    if (bunImport(source, target, ["mock"])) {
+      return "fn";
+    }
 
     if (target.type === "MemberExpression") {
       const method = propertyName(source, target);
@@ -1993,7 +2044,7 @@ export const noTestDoubles = defineRule({
       source.ast.body.some(
         (node) =>
           node.type === "ImportDeclaration" &&
-          /^(?:vitest(?:\/|$)|@jest\/globals$|node:test$)/u.test(
+          /^(?:vitest(?:\/|$)|@jest\/globals$|node:test$|bun:test$)/u.test(
             node.source.value,
           ),
       );

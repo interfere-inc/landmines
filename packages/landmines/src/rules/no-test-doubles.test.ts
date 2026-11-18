@@ -467,6 +467,7 @@ test.each([
   ["browser.fixture.ts", ""],
   ["browser.ts", 'import { vi } from "vitest";'],
   ["browser.ts", 'import { test } from "node:test";'],
+  ["browser.ts", 'import { test } from "bun:test";'],
 ])("rejects replacements in test context %s %s", (filename, imports) => {
   expect(
     lint(
@@ -1068,3 +1069,59 @@ test.each([
   expect(result.status).toBe(1);
   expect(result.output).toContain("no-test-doubles");
 });
+
+const bunReplacements = [
+  'import { mock } from "bun:test"; mock.module("./client", () => ({ send: () => true }));',
+  'import { mock as fake } from "bun:test"; fake.module("client", () => ({}));',
+  'import { mock } from "bun:test"; const { module: replace } = mock; replace("client", () => ({}));',
+  'import { mock } from "bun:test"; mock.module.call(mock, "client", () => ({}));',
+  'import * as bt from "bun:test"; bt.mock.module("client", () => ({}));',
+  'import * as bt from "bun:test"; const { mock } = bt; mock.module("client", () => ({}));',
+  'import { mock } from "bun:test"; mock(() => 42);',
+  'import { mock as fake } from "bun:test"; fake(async () => undefined);',
+  'import { mock } from "bun:test"; const create = mock; create(() => 42);',
+  'import * as bt from "bun:test"; bt.mock(() => 42);',
+  'import * as bt from "bun:test"; const { mock: fake } = bt; fake(() => 42);',
+  'import { mock } from "bun:test"; mock().mockReturnValue(42);',
+  'import { spyOn } from "bun:test"; spyOn(client, "send").mockResolvedValue({});',
+  'import * as bt from "bun:test"; bt.spyOn(globalThis, "fetch").mockImplementation(async () => new Response());',
+  'import { vi } from "bun:test"; vi.fn(() => 42);',
+  'import { vi } from "bun:test"; vi.mock("client", () => ({}));',
+  'import { jest } from "bun:test"; jest.fn(() => 42);',
+  'import { jest as tools } from "bun:test"; tools.mock("client", () => ({}));',
+  'import * as bt from "bun:test"; bt.vi.fn(() => 42);',
+  'import * as bt from "bun:test"; const { jest: tools } = bt; tools.fn(() => 42);',
+  'import { vi } from "bun:test"; vi.mock("client", { spy: true });',
+  'import * as bt from "bun:test"; bt.jest.mock("client", { spy: true });',
+  'import { mock } from "bun:test"; mock.module("client", { spy: true });',
+];
+
+test.each(lintBatch(bunReplacements, false, "testing"))(
+  "rejects bun:test behavior replacement: %s",
+  (_code, result) => {
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("Do not replace");
+  },
+);
+
+const bunObservation = [
+  'import { mock } from "bun:test"; const observer = mock();',
+  'import { mock } from "bun:test"; mock(undefined);',
+  'import * as bt from "bun:test"; bt.mock();',
+  'import { spyOn } from "bun:test"; spyOn(console, "info");',
+  'import * as bt from "bun:test"; bt.spyOn(globalThis, "fetch");',
+  'import { mock } from "bun:test"; mock.restore(); mock.clearAllMocks();',
+  'import { vi } from "bun:test"; vi.fn(); vi.spyOn(client, "send");',
+  'import { jest } from "bun:test"; jest.fn(); jest.restoreAllMocks();',
+  'import { mock } from "./helpers"; mock(() => 42); mock.module("client", () => ({}));',
+  'import * as helpers from "./helpers"; helpers.mock(() => 42);',
+  'import { mock } from "bun:test"; function run(mock) { mock(() => 42); }',
+  "const mock = (value) => value; mock(() => 42);",
+];
+
+test.each(lintBatch(bunObservation, false, "testing"))(
+  "allows bun:test observation: %s",
+  (_code, result) => {
+    expect(result.status).toBe(0);
+  },
+);
