@@ -36,6 +36,11 @@ const unsignaled = [
   "await vi.waitFor(() => expect(cancel.mock.calls.length).toBeGreaterThan(0));",
   "await vi.waitFor(() => { expect(fetcher).toHaveBeenCalled(); });",
   "await vi.waitFor(() => workers.size, { timeout: 2000 });",
+  "await vi.waitUntil(() => requests.length > 0);",
+  "await vi.waitUntil(() => traffic.requests.size > 1, { timeout: 2000 });",
+  "await vi.waitUntil(() => { return onComplete.mock.calls.length > 0; });",
+  "await vi.waitUntil(() => !stopped && requests.length > 0);",
+  "await vi.waitUntil(() => sent.length);",
 ];
 
 const signaled = [
@@ -54,6 +59,10 @@ const signaled = [
   "await vi.waitFor(() => expect(status).toBe('ready'));",
   "await vi.waitFor(() => { const count = requests.length; expect(count).toBe(1); });",
   "expect(requests).toHaveLength(1); expect(onComplete).toHaveBeenCalledOnce();",
+  "await vi.waitUntil(() => connected);",
+  "await vi.waitUntil(() => element.isVisible());",
+  "await vi.waitUntil(() => status.current === 'ready');",
+  "await vi.waitUntil(() => result.current.requests.length > 0);",
 ];
 
 test.each(
