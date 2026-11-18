@@ -206,6 +206,12 @@ const behaviorReplacements = [
   'import * as tools from "vitest"; tools.vi.stubGlobal("fetch", request);',
   'import * as tools from "@jest/globals"; tools.jest.fn(() => 42);',
   'import { jest as tools } from "@jest/globals"; tools.fn(() => 42);',
+  'import { rs } from "@rstest/core"; rs.fn(() => 42);',
+  'import { rstest as tools } from "@rstest/core"; tools.mock("client");',
+  'import { rs as mocker } from "effect-rstest"; mocker.stubGlobal("fetch", request);',
+  'import * as api from "@rstest/core"; api.rs.doMock("client", () => ({}));',
+  'rs.mock("client");',
+  "rstest.fn(() => 42);",
   'vi.mock("client", () => ({ send: () => true }));',
   'vi.mock("client");',
   'vi.doMock("client", () => ({ send: () => true }));',
@@ -423,6 +429,11 @@ const realImplementations = [
   'function run(Reflect) { Reflect.set(globalThis, "fetch", request); }',
   "Object.assign(globalThis, { testSetting: true });",
   'import { http, HttpResponse } from "msw"; http.get("/api", () => HttpResponse.json({ ok: true }));',
+  'import { rs } from "@rstest/core"; rs.mock("client", { spy: true });',
+  'import { rstest as observe } from "effect-rstest"; observe.fn();',
+  "const rs = { fn: callback => callback }; rs.fn(() => 42);",
+  'function run(rstest) { rstest.stubGlobal("fetch", request); }',
+  'import { rs } from "./helpers"; rs.mock("client");',
 ];
 
 test.each(lintBatch(realImplementations, false, "testing"))(
@@ -467,6 +478,8 @@ test.each([
   ["browser.fixture.ts", ""],
   ["browser.ts", 'import { vi } from "vitest";'],
   ["browser.ts", 'import { test } from "node:test";'],
+  ["browser.ts", 'import { test } from "@rstest/core";'],
+  ["browser.ts", 'import { it } from "effect-rstest";'],
 ])("rejects replacements in test context %s %s", (filename, imports) => {
   expect(
     lint(
