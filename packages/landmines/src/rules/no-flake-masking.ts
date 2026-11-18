@@ -129,15 +129,8 @@ export const noFlakeMasking = defineRule({
         reportAllowed(context, program, timeouts, "timeout");
       },
       Property(node) {
-        if (
-          keyName(node) === "test" &&
-          node.value.type === "ObjectExpression"
-        ) {
-          for (const property of node.value.properties) {
-            if (keyName(property) === "retry") {
-              context.report({ node: property, messageId: "retry" });
-            }
-          }
+        if (keyName(node) === "test") {
+          inspect(node.value, configTimeouts);
         }
       },
     };

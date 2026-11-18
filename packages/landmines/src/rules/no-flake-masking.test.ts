@@ -40,7 +40,7 @@ function createConfig(
 const config = createConfig("strict");
 
 const allowed = createConfig("allowed", {
-  allow: { "src/slow/build.test.ts": 1 },
+  allow: { "src/slow/build.test.ts": 1, "vitest.config.ts": 2 },
 });
 
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
@@ -70,6 +70,9 @@ const timeouts = [
   'describe("loader", { timeout: 60_000 }, () => {});',
   "vi.setConfig({ testTimeout: 45_000 });",
   "vi.setConfig({ hookTimeout: 45_000 });",
+  "export default defineConfig({ test: { testTimeout: 30_000, hookTimeout: 60_000 } });",
+  "export default defineConfig({ test: { testTimeout: 60000, hookTimeout: 60000 } });",
+  "export default defineConfig({ test: { projects: [{ test: { name: 'e2e', testTimeout: 60_000 } }] } });",
 ];
 
 const valid = [
@@ -84,7 +87,6 @@ const valid = [
   "const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });",
   "queue.retry({ delaySeconds: 30 });",
   "const policy = { retry: { maxAttempts: 1 } };",
-  "export default defineConfig({ test: { testTimeout: 30_000, hookTimeout: 60_000 } });",
   "vi.setConfig({ fakeTimers: { now: 0 } });",
 ];
 
@@ -97,7 +99,7 @@ test.each(lintBatch(retries, false, "testing", config))(
 );
 
 test.each(lintBatch(timeouts, false, "testing", config))(
-  "rejects per-test timeout bumps: %s",
+  "rejects timeout bumps: %s",
   (_code, result) => {
     expect(result.status).toBe(1);
     expect(result.output).toContain("Do not raise a test's timeout");
@@ -123,6 +125,20 @@ test.each(
     "src/slow/build.test.ts",
   ),
 )("accepts timeouts in allowlisted files: %s", (_code, result) => {
+  expect(result.status).toBe(0);
+});
+
+test.each(
+  lintBatch(
+    [
+      "export default defineConfig({ test: { testTimeout: 60_000, hookTimeout: 60_000 } });",
+    ],
+    false,
+    "testing",
+    allowed,
+    "vitest.config.ts",
+  ),
+)("accepts config timeouts in allowlisted files: %s", (_code, result) => {
   expect(result.status).toBe(0);
 });
 
