@@ -53,7 +53,7 @@ Tests that can't lie.
 | `no-test-doubles`    | Replacing dependency behaviour in tests: module mocks, `vi.fn(impl)`, stubbed globals, patched prototypes, hand-written bindings and fake responses. Use the real implementation and MSW for the network. Observation-only spies are allowed. |
 | `strict-msw`         | Starting MSW without `onUnhandledRequest: "error"`, so unmocked requests silently reach the network.                                                                                                                                          |
 | `no-fixed-sleep`     | Awaiting a fixed real-time delay in a test or hook. Await the operation or a signal it emits.                                                                                                                                                 |
-| `no-unsignaled-poll` | `expect.poll` and `vi.waitFor` on request recorders and spy state, which race a deadline instead of awaiting an event.                                                                                                                        |
+| `no-unsignaled-poll` | `expect.poll`, `vi.waitFor` and `vi.waitUntil` on request recorders and spy state, which race a deadline instead of awaiting an event.                                                                                                        |
 | `no-flake-masking`   | Test retries and raised timeouts. A test that passes on rerun is a flake to fix.                                                                                                                                                              |
 
 `no-fixed-sleep`, `strict-msw` and `no-flake-masking` accept a per-file

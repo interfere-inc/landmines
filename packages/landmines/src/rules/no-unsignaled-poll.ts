@@ -140,13 +140,42 @@ function pollsLength(node: ESTree.CallExpression, value: ESTree.Node) {
   );
 }
 
+function conditionReadsRecorder(node: ESTree.Node) {
+  const pending: ESTree.Node[] = [node];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+
+    if (current === undefined) {
+      break;
+    }
+
+    if (readsRecorder(current)) {
+      return true;
+    }
+
+    if (
+      current.type === "BinaryExpression" ||
+      current.type === "LogicalExpression"
+    ) {
+      pending.push(current.left, current.right);
+    } else if (current.type === "UnaryExpression") {
+      pending.push(current.argument);
+    } else if (current.type === "SequenceExpression") {
+      pending.push(...current.expressions);
+    }
+  }
+
+  return false;
+}
+
 export const noUnsignaledPoll = defineRule({
   meta: {
     type: "problem",
     schema: allowlistSchema,
     docs: {
       description:
-        "Disallow expect.poll and vi.waitFor on request recorders and spy state, which race a deadline instead of awaiting a signal.",
+        "Disallow expect.poll, vi.waitFor and vi.waitUntil on request recorders and spy state, which race a deadline instead of awaiting a signal.",
     },
     messages: {
       poll: "Await a signal instead of polling a request recorder or spy: resolve a Promise.withResolvers() deferred from the handler or callback that records it, then await its promise, or await the operation's own completion. A deadline-bound poll on a counter fails under CPU load, and a longer timeout only hides that.",
@@ -160,8 +189,9 @@ export const noUnsignaledPoll = defineRule({
     return {
       CallExpression(node) {
         const poll = isCall(node.callee, "expect", "poll");
+        const waitUntil = isCall(node.callee, "vi", "waitUntil");
 
-        if (!poll && !isCall(node.callee, "vi", "waitFor")) {
+        if (!poll && !waitUntil && !isCall(node.callee, "vi", "waitFor")) {
           return;
         }
 
@@ -172,10 +202,19 @@ export const noUnsignaledPoll = defineRule({
           return;
         }
 
-        if (
-          readsRecorder(value) ||
-          (poll ? pollsLength(node, value) : assertsRecorder(value))
-        ) {
+        let unsignaled = readsRecorder(value);
+
+        if (!unsignaled) {
+          if (poll) {
+            unsignaled = pollsLength(node, value);
+          } else if (waitUntil) {
+            unsignaled = conditionReadsRecorder(value);
+          } else {
+            unsignaled = assertsRecorder(value);
+          }
+        }
+
+        if (unsignaled) {
           violations.push(node);
         }
       },
