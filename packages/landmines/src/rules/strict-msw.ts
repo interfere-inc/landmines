@@ -81,15 +81,25 @@ function serverFactory(source: SourceCode, node: ESTree.Node) {
   return factories.size === 1 && factory !== undefined ? factory : null;
 }
 
+function keyName(property: ESTree.ObjectProperty) {
+  if (property.computed) {
+    return null;
+  }
+
+  if (property.key.type === "Identifier") {
+    return property.key.name;
+  }
+
+  return property.key.type === "Literal" ? property.key.value : null;
+}
+
 function strict(node: ESTree.Node | undefined) {
   return (
     node?.type === "ObjectExpression" &&
     node.properties.some(
       (property) =>
         property.type === "Property" &&
-        !property.computed &&
-        property.key.type === "Identifier" &&
-        property.key.name === "onUnhandledRequest" &&
+        keyName(property) === "onUnhandledRequest" &&
         ((property.value.type === "Literal" &&
           property.value.value === "error") ||
           property.value.type === "ArrowFunctionExpression" ||

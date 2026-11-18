@@ -50,6 +50,7 @@ const lenient = [
   `${server}const network = setupServer(); network.listen();`,
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest: "bypass" });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest: "warn" });`,
+  `${server}const network = setupServer(); network.listen({ "onUnhandledRequest": "warn" });`,
   `${server}const network = setupServer(); network.listen({ quiet: true });`,
   `${server}setupServer().listen({ onUnhandledRequest: "bypass" });`,
   `${server}const network = setupServer(); export function start() { network.listen(); }`,
@@ -62,6 +63,7 @@ const lenient = [
 const strict = [
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest: "error" });`,
   `${server}setupServer().listen({ onUnhandledRequest: "error" });`,
+  `${server}const network = setupServer(); network.listen({ "onUnhandledRequest": "error" });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest(request, print) { print.error(); } });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledRequest: (request) => { unhandled.push(request.url); } });`,
   `${worker}const network = setupWorker(); await network.start({ quiet: true, onUnhandledRequest: "error" });`,
