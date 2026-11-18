@@ -36,6 +36,15 @@ const frameworkReplacements = new Set([
   "enableAutomock",
 ]);
 
+const frameworkSources = new Set([
+  "vitest",
+  "@jest/globals",
+  "@rstest/core",
+  "effect-rstest",
+]);
+
+const frameworkNames = new Set(["vi", "vitest", "jest", "rs", "rstest"]);
+
 const replacementGlobals = new Set([
   "AbortController",
   "AbortSignal",
@@ -507,8 +516,7 @@ function namespaceImport(
         definition.type === "ImportNamespaceSpecifier" &&
         parent?.type === "ImportDeclaration" &&
         (specifier === undefined
-          ? parent.source.value === "vitest" ||
-            parent.source.value === "@jest/globals"
+          ? frameworkSources.has(parent.source.value)
           : parent.source.value === specifier),
     );
   }
@@ -521,14 +529,14 @@ function framework(source: SourceCode, initial: ESTree.Node) {
 
   if (
     node.type === "MemberExpression" &&
-    ["vi", "vitest", "jest"].includes(String(propertyName(source, node)))
+    frameworkNames.has(String(propertyName(source, node)))
   ) {
     return namespaceImport(source, node.object);
   }
 
   const reference = destructuredReference(source, node);
 
-  if (reference && ["vi", "vitest", "jest"].includes(reference.property)) {
+  if (reference && frameworkNames.has(reference.property)) {
     return namespaceImport(source, reference.object);
   }
 
@@ -563,12 +571,14 @@ function framework(source: SourceCode, initial: ESTree.Node) {
       return (
         (parent.source.value === "vitest" &&
           (name === "vi" || name === "vitest")) ||
-        (parent.source.value === "@jest/globals" && name === "jest")
+        (parent.source.value === "@jest/globals" && name === "jest") ||
+        (["@rstest/core", "effect-rstest"].includes(parent.source.value) &&
+          (name === "rs" || name === "rstest"))
       );
     });
   }
 
-  return ["vi", "vitest", "jest"].includes(node.name);
+  return frameworkNames.has(node.name);
 }
 
 function jestFramework(source: SourceCode, callee: ESTree.Node) {
@@ -1993,7 +2003,7 @@ export const noTestDoubles = defineRule({
       source.ast.body.some(
         (node) =>
           node.type === "ImportDeclaration" &&
-          /^(?:vitest(?:\/|$)|@jest\/globals$|node:test$)/u.test(
+          /^(?:vitest(?:\/|$)|@jest\/globals$|@rstest\/core$|effect-rstest$|node:test$)/u.test(
             node.source.value,
           ),
       );
