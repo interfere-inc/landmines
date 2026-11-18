@@ -54,7 +54,7 @@ Tests that can't lie.
 | `strict-msw`         | Starting MSW without `onUnhandledRequest: "error"`, so unmocked requests silently reach the network.                                                                                                                                          |
 | `no-fixed-sleep`     | Awaiting a fixed real-time delay in a test or hook. Await the operation or a signal it emits.                                                                                                                                                 |
 | `no-unsignaled-poll` | `expect.poll` and `vi.waitFor` on request recorders and spy state, which race a deadline instead of awaiting an event.                                                                                                                        |
-| `no-flake-masking`   | Test retries and raised timeouts. A test that passes on rerun is a flake to fix.                                                                                                                                                              |
+| `no-flake-masking`   | Test retries and raised timeouts, per test or in Vitest config. A test that passes on rerun is a flake to fix.                                                                                                                                |
 
 `no-fixed-sleep`, `strict-msw` and `no-flake-masking` accept a per-file
 allowlist with an exact count, so you can adopt them in an existing codebase
