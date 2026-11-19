@@ -129,7 +129,11 @@ function assertsRecorder(node: ESTree.Node) {
 }
 
 function pollsLength(node: ESTree.CallExpression, value: ESTree.Node) {
-  const { parent } = node;
+  const parent =
+    node.parent.type === "MemberExpression" &&
+    propertyName(node.parent) === "not"
+      ? node.parent.parent
+      : node.parent;
   const names = path(value);
   const matcher =
     parent.type === "MemberExpression" ? (propertyName(parent) ?? "") : "";
