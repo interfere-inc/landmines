@@ -1,7 +1,14 @@
 import { defineRule } from "@oxlint/plugins";
-import type { ESTree } from "@oxlint/plugins";
+import type { ESTree, Scope, SourceCode } from "@oxlint/plugins";
 
 import { allowlistSchema, reportAllowed } from "../lib/allowlist.ts";
+
+const pollSources = new Set([
+  "vitest",
+  "vite-plus/test",
+  "@playwright/test",
+  "playwright/test",
+]);
 
 const spyMatchers =
   /^(?:toHaveBeenCalled|toHaveBeenCalledOnce|toHaveBeenCalledTimes|toHaveBeenCalledWith|toHaveBeenCalledExactlyOnceWith|toHaveBeenLastCalledWith|toHaveBeenNthCalledWith|toHaveReturned|toHaveReturnedTimes|toHaveReturnedWith|toHaveLastReturnedWith|toHaveNthReturnedWith|toHaveResolved|toHaveResolvedTimes|toHaveResolvedWith|toHaveLastResolvedWith|toHaveNthResolvedWith)$/u;
@@ -12,11 +19,53 @@ function propertyName(node: ESTree.MemberExpression) {
     : undefined;
 }
 
-function isCall(node: ESTree.Node, object: string, property: string) {
+function bindingName(source: SourceCode, node: ESTree.Node) {
+  if (node.type !== "Identifier") {
+    return null;
+  }
+
+  for (
+    let scope: Scope | null = source.getScope(node);
+    scope !== null;
+    scope = scope.upper
+  ) {
+    const variable = scope.set.get(node.name);
+
+    if (!variable || variable.defs.length === 0) {
+      continue;
+    }
+
+    for (const { node: definition, parent } of variable.defs) {
+      if (
+        definition.type === "ImportSpecifier" &&
+        parent?.type === "ImportDeclaration" &&
+        pollSources.has(parent.source.value)
+      ) {
+        const name =
+          definition.imported.type === "Identifier"
+            ? definition.imported.name
+            : definition.imported.value;
+
+        return name === "vitest" ? "vi" : name;
+      }
+    }
+
+    return null;
+  }
+
+  return node.name;
+}
+
+function isCall(
+  source: SourceCode,
+  node: ESTree.Node,
+  object: string,
+  property: string,
+) {
   return (
     node.type === "MemberExpression" &&
     node.object.type === "Identifier" &&
-    node.object.name === object &&
+    bindingName(source, node.object) === object &&
     propertyName(node) === property
   );
 }
@@ -85,7 +134,7 @@ function polledValue(callback: ESTree.Node) {
     : null;
 }
 
-function assertsRecorder(node: ESTree.Node) {
+function assertsRecorder(source: SourceCode, node: ESTree.Node) {
   if (
     node.type !== "CallExpression" ||
     node.callee.type !== "MemberExpression"
@@ -104,7 +153,7 @@ function assertsRecorder(node: ESTree.Node) {
   if (
     subject.type !== "CallExpression" ||
     subject.callee.type !== "Identifier" ||
-    subject.callee.name !== "expect"
+    bindingName(source, subject.callee) !== "expect"
   ) {
     return false;
   }
@@ -156,13 +205,14 @@ export const noUnsignaledPoll = defineRule({
     },
   },
   create(context) {
+    const source = context.sourceCode;
     const violations: ESTree.Node[] = [];
 
     return {
       CallExpression(node) {
-        const poll = isCall(node.callee, "expect", "poll");
+        const poll = isCall(source, node.callee, "expect", "poll");
 
-        if (!poll && !isCall(node.callee, "vi", "waitFor")) {
+        if (!poll && !isCall(source, node.callee, "vi", "waitFor")) {
           return;
         }
 
@@ -175,7 +225,7 @@ export const noUnsignaledPoll = defineRule({
 
         if (
           readsRecorder(value) ||
-          (poll ? pollsLength(node, value) : assertsRecorder(value))
+          (poll ? pollsLength(node, value) : assertsRecorder(source, value))
         ) {
           violations.push(node);
         }

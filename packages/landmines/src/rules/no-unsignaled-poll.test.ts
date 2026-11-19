@@ -127,3 +127,85 @@ test("ignores allowlist entries that only share a filename suffix", () => {
     ).status,
   ).toBe(1);
 });
+
+test.each(
+  lintBatch(
+    [
+      'import { expect as check } from "vitest"; await check.poll(() => requests.length).toBe(1);',
+      'import { expect as check } from "vitest"; await check.poll(() => spy).toHaveBeenCalled();',
+      'import { vi as timers } from "vitest"; await timers.waitFor(() => expect(requests).toHaveLength(1));',
+      'import { expect as check, vi as timers } from "vitest"; await timers.waitFor(() => check(onCall).toHaveBeenCalledOnce());',
+      'import { expect as check, vitest as timers } from "vitest"; await timers.waitFor(() => check(releases.length).toBeGreaterThan(0));',
+    ],
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  ),
+)("rejects recorder polls through named import aliases: %s", (_, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Await a signal instead of polling");
+});
+
+test.each(
+  lintBatch(
+    [
+      "function verify(expect) { return expect.poll(() => requests.length).toBe(1); }",
+      "function verify(vi) { return vi.waitFor(() => expect(requests).toHaveLength(1)); }",
+      'import { expect } from "./assertions"; await expect.poll(() => requests.length).toBe(1);',
+      'import { vi } from "./clock"; await vi.waitFor(() => expect(requests).toHaveLength(1));',
+      'import { vi } from "vitest"; function verify(expect) { return vi.waitFor(() => expect(requests).toHaveLength(1)); }',
+      'import { expect as check } from "vitest"; await check.poll(() => result.current.items.length).toBe(2);',
+      'import { expect as check, vi as timers } from "vitest"; await timers.waitFor(() => check(status).toBe("ready"));',
+      'import { expect as check } from "vitest"; { const check = localAssertion; await check.poll(() => requests.length).toBe(1); }',
+    ],
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  ),
+)("allows shadowed bindings and aliased observable state: %s", (_, result) => {
+  expect(result.status).toBe(0);
+});
+
+test.each(
+  lintBatch(
+    [
+      'import { expect } from "@playwright/test"; await expect.poll(() => requests.length).toBe(1);',
+      'import { expect as check } from "@playwright/test"; await check.poll(() => requests.length).toBe(1);',
+      'import { expect } from "playwright/test"; await expect.poll(() => requests.length).toBe(1);',
+      'import { expect as check } from "playwright/test"; await check.poll(() => requests.length).toBe(1);',
+      'import { expect } from "vite-plus/test"; await expect.poll(() => requests.length).toBe(1);',
+      'import { expect as check } from "vite-plus/test"; await check.poll(() => requests.length).toBe(1);',
+      'import { expect as check, vi as timers } from "vite-plus/test"; await timers.waitFor(() => check(requests).toHaveLength(1));',
+      'import { expect, vi } from "vite-plus/test"; await vi.waitFor(() => expect(requests).toHaveLength(1));',
+    ],
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  ),
+)("rejects recorder polls through known framework imports: %s", (_, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Await a signal instead of polling");
+});
+
+test.each(
+  lintBatch(
+    [
+      'import { expect as check } from "@playwright/test"; await check.poll(() => result.current.items.length).toBe(2);',
+      'import { expect as check, vi as timers } from "vite-plus/test"; await timers.waitFor(() => check(status).toBe("ready"));',
+      'import { expect } from "playwright/test"; function verify(expect) { return expect.poll(() => requests.length).toBe(1); }',
+      'import { expect } from "vite-plus"; await expect.poll(() => requests.length).toBe(1);',
+    ],
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  ),
+)(
+  "allows observable state and shadows of framework imports: %s",
+  (_, result) => {
+    expect(result.status).toBe(0);
+  },
+);
