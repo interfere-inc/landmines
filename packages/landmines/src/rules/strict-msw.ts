@@ -82,17 +82,14 @@ function serverFactory(source: SourceCode, node: ESTree.Node) {
 }
 
 function keyName(property: ESTree.ObjectProperty) {
-  if (property.computed) {
-    return null;
-  }
-
-  if (property.key.type === "Identifier") {
+  if (!property.computed && property.key.type === "Identifier") {
     return property.key.name;
   }
 
   return property.key.type === "Literal" &&
-    typeof property.key.value === "string"
-    ? property.key.value
+    (typeof property.key.value === "string" ||
+      typeof property.key.value === "number")
+    ? String(property.key.value)
     : null;
 }
 
@@ -129,19 +126,50 @@ function namedHandler(source: SourceCode, node: ESTree.Node) {
   );
 }
 
-function strict(source: SourceCode, node: ESTree.Node | undefined) {
-  return (
-    node?.type === "ObjectExpression" &&
-    node.properties.some(
-      (property) =>
-        property.type === "Property" &&
-        unhandledOptions.has(keyName(property) ?? "") &&
+function applyOptions(
+  source: SourceCode,
+  node: ESTree.Node | undefined,
+  strictOptions: Set<string>,
+) {
+  if (node?.type !== "ObjectExpression") {
+    strictOptions.clear();
+
+    return;
+  }
+
+  for (const property of node.properties) {
+    if (property.type === "SpreadElement") {
+      applyOptions(source, property.argument, strictOptions);
+
+      continue;
+    }
+
+    const name = keyName(property);
+
+    if (name === null) {
+      strictOptions.clear();
+    } else if (unhandledOptions.has(name)) {
+      if (
+        property.kind === "init" &&
         ((property.value.type === "Literal" &&
           property.value.value === "error") ||
           inlineHandler(property.value) ||
-          namedHandler(source, property.value)),
-    )
-  );
+          namedHandler(source, property.value))
+      ) {
+        strictOptions.add(name);
+      } else {
+        strictOptions.delete(name);
+      }
+    }
+  }
+}
+
+function strict(source: SourceCode, node: ESTree.Node | undefined) {
+  const strictOptions = new Set<string>();
+
+  applyOptions(source, node, strictOptions);
+
+  return strictOptions.size > 0;
 }
 
 export const strictMsw = defineRule({

@@ -65,6 +65,14 @@ const lenient = [
   `${server}import { handle } from "./handle";\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledFrame: missing });`,
   `${server}export function start(handle) { setupServer().listen({ onUnhandledFrame: handle }); }`,
+  `${server}setupServer().listen({ onUnhandledRequest: "error", onUnhandledRequest: "bypass" });`,
+  `${worker}setupWorker().start({ onUnhandledFrame: "error", "onUnhandledFrame": "warn" });`,
+  `${server}setupServer().listen({ onUnhandledRequest: "error", ...options });`,
+  `${server}setupServer().listen({ onUnhandledRequest: "error", ...{ onUnhandledRequest: "bypass" } });`,
+  `${worker}setupWorker().start({ ...{ onUnhandledFrame: "error" }, ...{ onUnhandledFrame: "warn" } });`,
+  `${server}setupServer().listen({ onUnhandledRequest: "error", [option]: "bypass" });`,
+  `${server}setupServer().listen({ onUnhandledRequest: "error", ["onUnhandledRequest"]: "warn" });`,
+  `${server}setupServer().listen({ get onUnhandledRequest() { return "bypass"; } });`,
 ];
 
 const strict = [
@@ -85,6 +93,14 @@ const strict = [
   `${server}const network = setupServer(); network.listen({ onUnhandledFrame({ defaults }) { defaults.error(); } });`,
   `${server}function handle(request, print) { print.error(); }\nconst network = setupServer(); network.listen({ onUnhandledRequest: handle });`,
   `${server}const handle = ({ defaults }) => { defaults.error(); };\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
+  `${server}setupServer().listen({ onUnhandledRequest: "bypass", onUnhandledRequest: "error" });`,
+  `${worker}setupWorker().start({ ...options, onUnhandledFrame: "error" });`,
+  `${server}setupServer().listen({ onUnhandledRequest: "error", ...{ quiet: true } });`,
+  `${server}setupServer().listen({ ...{ onUnhandledRequest: "error" } });`,
+  `${worker}setupWorker().start({ onUnhandledFrame: "warn", ...{ ...{ onUnhandledFrame: "error" } } });`,
+  `${server}setupServer().listen({ [option]: "bypass", onUnhandledRequest: "error" });`,
+  `${server}setupServer().listen({ ["onUnhandledRequest"]: "error" });`,
+  `${server}setupServer().listen({ onUnhandledRequest: "error", 1: "metadata", [2]: "other" });`,
 ];
 
 test.each(lintBatch(lenient, false, "testing", config))(
