@@ -84,8 +84,7 @@ function fakeTimerScope(node: ESTree.Node, runNow: ReadonlySet<string>) {
       call?.type === "CallExpression" ? calleeRoot(call.callee) : undefined;
 
     const member =
-      call?.type === "CallExpression" &&
-      call.callee.type === "MemberExpression"
+      call?.type === "CallExpression" && call.callee.type === "MemberExpression"
         ? calleeName(call.callee)
         : undefined;
 
