@@ -62,7 +62,7 @@ const functional = [
   '// \u0040vitest-environment-options { "url": "https://example.test/" }\nexport const count = 1;',
   "/**\n * \u0040jest-environment jsdom\n */\nexport const count = 1;",
   '/**\n * \u0040jest-environment-options { "url": "https://example.test/" }\n */\nexport const count = 1;',
-  '/**\n * \u0040vitest-environment ./custom-environment.ts\n * \u0040vitest-environment-options { "name": "preview" }\n */\nexport const count = 1;',
+  '/**\n * \u0040vitest-environment custom-environment\n * \u0040vitest-environment-options { "name": "preview" }\n */\nexport const count = 1;',
   "/// <reference types='node' />\nexport const count = 1;",
   "/* @jsxImportSource react */\nexport const view = <div />;",
   "// SPDX-License-Identifier: MIT\nexport const count = 1;",
