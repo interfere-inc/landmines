@@ -231,6 +231,20 @@ export const noFixedSleep = defineRule({
           sleeps.push(node);
         }
       },
+      ReturnStatement(node) {
+        if (
+          node.argument &&
+          isSleep(node.argument) &&
+          inTestBody(node, runNow)
+        ) {
+          sleeps.push(node.argument);
+        }
+      },
+      ArrowFunctionExpression(node) {
+        if (isSleep(node.body) && inTestBody(node.body, runNow)) {
+          sleeps.push(node.body);
+        }
+      },
       "Program:exit"(program) {
         reportAllowed(context, program, fakeTimers ? [] : sleeps, "sleep");
       },
