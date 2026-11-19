@@ -18,6 +18,14 @@ function configuration(allow?: Record<string, number>) {
 }
 
 const sleeps = [
+  "test('x', () => new Promise((resolve) => setTimeout(resolve, 20)));",
+  "test('x', function () { return new Promise((resolve) => setTimeout(resolve, 20)); });",
+  'import { setTimeout as sleep } from "node:timers/promises"; beforeEach(() => sleep(20));',
+  "afterEach(() => { return scheduler.wait(20); });",
+  "it('x', () => Bun.sleep(20));",
+  "test('x', () => act(() => scheduler.wait(20)));",
+  "test('x', () => load().then(() => { return scheduler.wait(20); }));",
+  "test.each([1])('x %s', () => scheduler.wait(20));",
   "test('x', async () => { await new Promise((resolve) => { setTimeout(resolve, 250); }); });",
   "test('x', async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });",
   "test('x', async () => { await new Promise<void>((done) => globalThis.setTimeout(() => done(), 31_000)); });",
@@ -43,6 +51,13 @@ const sleeps = [
 ];
 
 const signals = [
+  "test('x', () => operation());",
+  "test('x', () => { return operation(); });",
+  "test('x', () => { scheduler.wait(20); });",
+  "test('x', () => { vi.useFakeTimers(); return new Promise((resolve) => setTimeout(resolve, 20)); });",
+  "test('x', () => serve(() => scheduler.wait(20)));",
+  "test('x', () => { function delayed() { return scheduler.wait(20); } return run(delayed); });",
+  "const delayed = () => scheduler.wait(20); test('x', () => run(delayed));",
   "test('x', async () => { await operation(); });",
   "test('x', async () => { const ready = Promise.withResolvers(); await ready.promise; });",
   "test('x', async () => { vi.useFakeTimers(); await new Promise((resolve) => { setTimeout(resolve, 250); }); });",
@@ -106,6 +121,18 @@ test("replaces the default run-now callees when configured", () => {
 
 const twoSleeps =
   "test('x', async () => { await scheduler.wait(1); await scheduler.wait(2); });";
+
+test("counts a returned await expression only once", () => {
+  expect(
+    lint(
+      "test('x', async () => { return await scheduler.wait(1); });",
+      false,
+      "testing",
+      configuration({ "0/fixture.test.ts": 1 }),
+      "fixture.test.ts",
+    ).status,
+  ).toBe(0);
+});
 
 test("accepts a file exactly at its allowlisted count", () => {
   expect(
