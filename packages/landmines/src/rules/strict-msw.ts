@@ -30,13 +30,14 @@ function mswFactory(source: SourceCode, node: ESTree.Node | null | undefined) {
   }
 
   const { callee } = node;
-  const identifier =
-    callee.type === "Identifier"
-      ? callee
-      : callee.type === "MemberExpression" &&
-          callee.object.type === "Identifier"
-        ? callee.object
-        : null;
+  let identifier = callee.type === "Identifier" ? callee : null;
+
+  if (
+    callee.type === "MemberExpression" &&
+    callee.object.type === "Identifier"
+  ) {
+    identifier = callee.object;
+  }
 
   if (!identifier) {
     return null;
@@ -67,13 +68,17 @@ function mswFactory(source: SourceCode, node: ESTree.Node | null | undefined) {
       callee.type === "MemberExpression" &&
       definition.type === "ImportNamespaceSpecifier"
     ) {
-      const name =
+      let name =
         !callee.computed && callee.property.type === "Identifier"
           ? callee.property.name
-          : callee.property.type === "Literal" &&
-              typeof callee.property.value === "string"
-            ? callee.property.value
-            : null;
+          : null;
+
+      if (
+        callee.property.type === "Literal" &&
+        typeof callee.property.value === "string"
+      ) {
+        name = callee.property.value;
+      }
 
       return name !== null && starters.has(name) ? name : null;
     }
