@@ -54,10 +54,7 @@ function mswFactory(source: SourceCode, node: ESTree.Node | null | undefined) {
       continue;
     }
 
-    if (
-      callee.type === "Identifier" &&
-      definition.type === "ImportSpecifier"
-    ) {
+    if (callee.type === "Identifier" && definition.type === "ImportSpecifier") {
       const name =
         definition.imported.type === "Identifier"
           ? definition.imported.name
