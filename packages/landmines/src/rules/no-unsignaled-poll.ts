@@ -3,6 +3,13 @@ import type { ESTree, Scope, SourceCode } from "@oxlint/plugins";
 
 import { allowlistSchema, reportAllowed } from "../lib/allowlist.ts";
 
+const pollSources = new Set([
+  "vitest",
+  "vite-plus/test",
+  "@playwright/test",
+  "playwright/test",
+]);
+
 const spyMatchers =
   /^(?:toHaveBeenCalled|toHaveBeenCalledOnce|toHaveBeenCalledTimes|toHaveBeenCalledWith|toHaveBeenCalledExactlyOnceWith|toHaveBeenLastCalledWith|toHaveBeenNthCalledWith|toHaveReturned|toHaveReturnedTimes|toHaveReturnedWith|toHaveLastReturnedWith|toHaveNthReturnedWith|toHaveResolved|toHaveResolvedTimes|toHaveResolvedWith|toHaveLastResolvedWith|toHaveNthResolvedWith)$/u;
 
@@ -32,7 +39,7 @@ function bindingName(source: SourceCode, node: ESTree.Node) {
       if (
         definition.type === "ImportSpecifier" &&
         parent?.type === "ImportDeclaration" &&
-        parent.source.value === "vitest"
+        pollSources.has(parent.source.value)
       ) {
         const name =
           definition.imported.type === "Identifier"

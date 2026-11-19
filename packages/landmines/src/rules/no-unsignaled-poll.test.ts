@@ -167,3 +167,42 @@ test.each(
 )("allows shadowed bindings and aliased observable state: %s", (_, result) => {
   expect(result.status).toBe(0);
 });
+
+test.each(
+  lintBatch(
+    [
+      'import { expect } from "@playwright/test"; await expect.poll(() => requests.length).toBe(1);',
+      'import { expect as check } from "@playwright/test"; await check.poll(() => requests.length).toBe(1);',
+      'import { expect } from "playwright/test"; await expect.poll(() => requests.length).toBe(1);',
+      'import { expect as check } from "playwright/test"; await check.poll(() => requests.length).toBe(1);',
+      'import { expect } from "vite-plus/test"; await expect.poll(() => requests.length).toBe(1);',
+      'import { expect as check } from "vite-plus/test"; await check.poll(() => requests.length).toBe(1);',
+      'import { expect as check, vi as timers } from "vite-plus/test"; await timers.waitFor(() => check(requests).toHaveLength(1));',
+      'import { expect, vi } from "vite-plus/test"; await vi.waitFor(() => expect(requests).toHaveLength(1));',
+    ],
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  ),
+)("rejects recorder polls through known framework imports: %s", (_, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Await a signal instead of polling");
+});
+
+test.each(
+  lintBatch(
+    [
+      'import { expect as check } from "@playwright/test"; await check.poll(() => result.current.items.length).toBe(2);',
+      'import { expect as check, vi as timers } from "vite-plus/test"; await timers.waitFor(() => check(status).toBe("ready"));',
+      'import { expect } from "playwright/test"; function verify(expect) { return expect.poll(() => requests.length).toBe(1); }',
+      'import { expect } from "vite-plus"; await expect.poll(() => requests.length).toBe(1);',
+    ],
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  ),
+)("allows observable state and shadows of framework imports: %s", (_, result) => {
+  expect(result.status).toBe(0);
+});
