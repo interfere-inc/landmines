@@ -156,6 +156,50 @@ test.each([
   expect(result.status).toBe(0);
 });
 
+test.each([
+  "test('fake', async () => { await test.step('setup', () => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "test('fake', async () => { await test.step('outer', () => test.step('inner', () => { vi.useFakeTimers(); })); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "beforeEach(async () => { await test.step('setup', () => { vi.useFakeTimers(); }); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "describe('fake', () => { beforeEach(async () => { await test.step('setup', () => { vi.useFakeTimers(); }); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); });",
+])("keeps test.step timer setup in its enclosing test or hook: %s", (code) => {
+  const result = lint(
+    code,
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(0);
+});
+
+test("keeps test.each registrations separate when test.step sets up timers", () => {
+  const result = lint(
+    "test.each([1])('fake %s', async () => { await test.step('setup', () => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); vi.useRealTimers(); }); test('real', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(
+    result.output.match(/Replace this fixed sleep with a signal/gu),
+  ).toHaveLength(1);
+});
+
+test("keeps test.step setup when runNow defaults are replaced", () => {
+  const result = lint(
+    "test('fake', async () => { await test.step('setup', () => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+    false,
+    "testing",
+    ruleConfiguration(directory, "testing/no-fixed-sleep", { runNow: [] }),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(0);
+});
+
 test("counts only real sleeps against a mixed file's allowance", () => {
   expect(
     lint(
