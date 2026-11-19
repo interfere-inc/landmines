@@ -69,7 +69,7 @@ function calleeName(node: ESTree.Node) {
     : undefined;
 }
 
-function fakeTimerScope(node: ESTree.Node) {
+function fakeTimerScope(node: ESTree.Node, runNow: ReadonlySet<string>) {
   let current = node;
   let sharedSetup = false;
 
@@ -82,6 +82,21 @@ function fakeTimerScope(node: ESTree.Node) {
 
     const name =
       call?.type === "CallExpression" ? calleeRoot(call.callee) : undefined;
+
+    const member =
+      call?.type === "CallExpression" &&
+      call.callee.type === "MemberExpression"
+        ? calleeName(call.callee)
+        : undefined;
+
+    if (
+      member !== undefined &&
+      (defaultRunNow.includes(member) || runNow.has(member))
+    ) {
+      current = current.parent;
+
+      continue;
+    }
 
     if (sharedSetup) {
       if (name === "describe" || name === "suite") {
@@ -269,7 +284,7 @@ export const noFixedSleep = defineRule({
       },
       CallExpression(node) {
         if (isMember(node.callee, "vi", "useFakeTimers")) {
-          fakeTimers.add(fakeTimerScope(node));
+          fakeTimers.add(fakeTimerScope(node, runNow));
         }
       },
       AwaitExpression(node) {

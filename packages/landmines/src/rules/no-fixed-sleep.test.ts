@@ -159,6 +159,7 @@ test.each([
 test.each([
   "test('fake', async () => { await test.step('setup', () => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); });",
   "test('fake', async () => { await test.step('outer', () => test.step('inner', () => { vi.useFakeTimers(); })); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "test('fake', async () => { await test.step('setup', () => operation()).then(() => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); });",
   "beforeEach(async () => { await test.step('setup', () => { vi.useFakeTimers(); }); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
   "describe('fake', () => { beforeEach(async () => { await test.step('setup', () => { vi.useFakeTimers(); }); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); });",
 ])("keeps test.step timer setup in its enclosing test or hook: %s", (code) => {
