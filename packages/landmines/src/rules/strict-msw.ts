@@ -25,19 +25,38 @@ function variableOf(source: SourceCode, node: ESTree.Node, name: string) {
 }
 
 function mswFactory(source: SourceCode, node: ESTree.Node | null | undefined) {
-  if (node?.type !== "CallExpression" || node.callee.type !== "Identifier") {
+  if (node?.type !== "CallExpression") {
+    return null;
+  }
+
+  const { callee } = node;
+  const identifier =
+    callee.type === "Identifier"
+      ? callee
+      : callee.type === "MemberExpression" &&
+          callee.object.type === "Identifier"
+        ? callee.object
+        : null;
+
+  if (!identifier) {
     return null;
   }
 
   for (const { node: definition, parent } of variableOf(
     source,
-    node.callee,
-    node.callee.name,
+    identifier,
+    identifier.name,
   )?.defs ?? []) {
     if (
-      definition.type === "ImportSpecifier" &&
-      parent?.type === "ImportDeclaration" &&
-      /^msw(?:\/|$)/u.test(parent.source.value)
+      parent?.type !== "ImportDeclaration" ||
+      !/^msw(?:\/|$)/u.test(parent.source.value)
+    ) {
+      continue;
+    }
+
+    if (
+      callee.type === "Identifier" &&
+      definition.type === "ImportSpecifier"
     ) {
       const name =
         definition.imported.type === "Identifier"
@@ -45,6 +64,21 @@ function mswFactory(source: SourceCode, node: ESTree.Node | null | undefined) {
           : definition.imported.value;
 
       return starters.has(name) ? name : null;
+    }
+
+    if (
+      callee.type === "MemberExpression" &&
+      definition.type === "ImportNamespaceSpecifier"
+    ) {
+      const name =
+        !callee.computed && callee.property.type === "Identifier"
+          ? callee.property.name
+          : callee.property.type === "Literal" &&
+              typeof callee.property.value === "string"
+            ? callee.property.value
+            : null;
+
+      return name !== null && starters.has(name) ? name : null;
     }
   }
 
