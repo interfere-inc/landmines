@@ -12,7 +12,11 @@ function propertyName(node: ESTree.MemberExpression) {
     : undefined;
 }
 
-function bindingName(source: SourceCode, node: ESTree.Identifier) {
+function bindingName(source: SourceCode, node: ESTree.Node) {
+  if (node.type !== "Identifier") {
+    return null;
+  }
+
   for (
     let scope: Scope | null = source.getScope(node);
     scope !== null;
