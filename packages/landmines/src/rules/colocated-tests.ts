@@ -1,8 +1,10 @@
 import { relative } from "node:path";
 import { defineRule } from "@oxlint/plugins";
+import type { Scope } from "@oxlint/plugins";
 import { z } from "zod";
 
 import { isOwnedTest, testOwner } from "../lib/test-owner.ts";
+import type { ModuleImport } from "../lib/test-owner.ts";
 
 export const colocatedTests = defineRule({
   meta: {
@@ -19,7 +21,7 @@ export const colocatedTests = defineRule({
   },
   create(context) {
     const filename = context.physicalFilename;
-    const imports: string[] = [];
+    const imports: ModuleImport[] = [];
 
     if (!/\.test\.[cm]?[jt]sx?$/u.test(filename)) {
       return {};
@@ -37,7 +39,7 @@ export const colocatedTests = defineRule({
             ));
 
         if (!typeOnly) {
-          imports.push(node.source.value);
+          imports.push({ specifier: node.source.value, mode: "import" });
         }
       },
       ImportExpression(node) {
@@ -45,8 +47,45 @@ export const colocatedTests = defineRule({
           const parsed = z.string().safeParse(node.source.value);
 
           if (parsed.success) {
-            imports.push(parsed.data);
+            imports.push({ specifier: parsed.data, mode: "import" });
           }
+        }
+      },
+      CallExpression(node) {
+        if (
+          node.callee.type !== "Identifier" ||
+          node.callee.name !== "require" ||
+          node.arguments.length !== 1 ||
+          node.arguments[0]?.type !== "Literal"
+        ) {
+          return;
+        }
+
+        for (
+          let scope: Scope | null = context.sourceCode.getScope(node);
+          scope;
+          scope = scope.upper
+        ) {
+          if ((scope.set.get("require")?.defs.length ?? 0) > 0) {
+            return;
+          }
+        }
+
+        const parsed = z.string().safeParse(node.arguments[0].value);
+
+        if (parsed.success) {
+          imports.push({ specifier: parsed.data, mode: "require" });
+        }
+      },
+      TSImportEqualsDeclaration(node) {
+        if (
+          node.importKind !== "type" &&
+          node.moduleReference.type === "TSExternalModuleReference"
+        ) {
+          imports.push({
+            specifier: node.moduleReference.expression.value,
+            mode: "require",
+          });
         }
       },
       "Program:exit"(node) {
