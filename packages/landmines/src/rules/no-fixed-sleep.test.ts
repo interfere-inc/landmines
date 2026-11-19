@@ -107,6 +107,125 @@ test("replaces the default run-now callees when configured", () => {
 const twoSleeps =
   "test('x', async () => { await scheduler.wait(1); await scheduler.wait(2); });";
 
+const mixedTimers =
+  "test('fake', async () => { vi.useFakeTimers(); await new Promise((resolve) => setTimeout(resolve, 1)); vi.useRealTimers(); }); test('real', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });";
+
+test.each([
+  mixedTimers,
+  "it('real', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); it('fake', () => { vi.useFakeTimers(); vi.useRealTimers(); });",
+  "test.skip('fake', () => { vi.useFakeTimers(); }); test.each([1])('real %s', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "afterEach(() => { vi.useFakeTimers(); }); test('real', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "afterAll(() => { vi.useFakeTimers(); }); test('real', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "describe('fake', () => { beforeEach(() => { vi.useFakeTimers(); }); afterEach(() => { vi.useRealTimers(); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); }); describe('real', () => { test('real', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); });",
+  "suite.each([1])('fake %s', () => { beforeAll(() => { vi.useFakeTimers(); }); afterAll(() => { vi.useRealTimers(); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); }); test('real', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "test('fake', () => { vi.useFakeTimers(); vi.useRealTimers(); }); test('real', () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }));",
+])("reports only the real sleep in a mixed timer file: %s", (code) => {
+  const result = lint(
+    code,
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(
+    result.output.match(/Replace this fixed sleep with a signal/gu),
+  ).toHaveLength(1);
+});
+
+test.each([
+  "beforeEach(() => { vi.useFakeTimers(); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "beforeAll(() => { vi.useFakeTimers(); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "describe('outer', () => { beforeEach(() => { vi.useFakeTimers(); }); describe('inner', () => { test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); }); });",
+  "beforeEach(() => { vi.useFakeTimers(); }); suite('nested', () => { test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); });",
+  "test('fake', async () => { await act(() => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "afterEach(async () => { vi.useFakeTimers(); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "vi.useFakeTimers(); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "function prepare() { vi.useFakeTimers(); } beforeEach(prepare); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "describe('setup', () => { vi.useFakeTimers(); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+])("preserves the applicable fake timer setup: %s", (code) => {
+  const result = lint(
+    code,
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(0);
+});
+
+test.each([
+  "test('fake', async () => { await test.step('setup', () => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "test('fake', async () => { await test.step('outer', () => test.step('inner', () => { vi.useFakeTimers(); })); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "test('fake', async () => { await test.step('setup', () => operation()).then(() => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "beforeEach(async () => { await test.step('setup', () => { vi.useFakeTimers(); }); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "describe('fake', () => { beforeEach(async () => { await test.step('setup', () => { vi.useFakeTimers(); }); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); });",
+])("keeps test.step timer setup in its enclosing test or hook: %s", (code) => {
+  const result = lint(
+    code,
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(0);
+});
+
+test("keeps test.each registrations separate when test.step sets up timers", () => {
+  const result = lint(
+    "test.each([1])('fake %s', async () => { await test.step('setup', () => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); vi.useRealTimers(); }); test('real', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(
+    result.output.match(/Replace this fixed sleep with a signal/gu),
+  ).toHaveLength(1);
+});
+
+test("keeps test.step setup when runNow defaults are replaced", () => {
+  const result = lint(
+    "test('fake', async () => { await test.step('setup', () => { vi.useFakeTimers(); }); await new Promise((resolve) => setTimeout(resolve, 1)); });",
+    false,
+    "testing",
+    ruleConfiguration(directory, "testing/no-fixed-sleep", { runNow: [] }),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(0);
+});
+
+test("counts only real sleeps against a mixed file's allowance", () => {
+  expect(
+    lint(
+      mixedTimers,
+      false,
+      "testing",
+      configuration({ "0/fixture.test.ts": 1 }),
+      "fixture.test.ts",
+    ).status,
+  ).toBe(0);
+});
+
+test("reports the real sleep count when a mixed file's allowance is stale", () => {
+  const result = lint(
+    mixedTimers,
+    false,
+    "testing",
+    configuration({ "0/fixture.test.ts": 2 }),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("This file now has 1 fixed sleeps");
+});
+
 test("accepts a file exactly at its allowlisted count", () => {
   expect(
     lint(
