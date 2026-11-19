@@ -203,6 +203,9 @@ test.each(
     configuration(),
     "fixture.test.ts",
   ),
-)("allows observable state and shadows of framework imports: %s", (_, result) => {
-  expect(result.status).toBe(0);
-});
+)(
+  "allows observable state and shadows of framework imports: %s",
+  (_, result) => {
+    expect(result.status).toBe(0);
+  },
+);
