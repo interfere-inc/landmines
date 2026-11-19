@@ -69,6 +69,38 @@ function calleeName(node: ESTree.Node) {
     : undefined;
 }
 
+function fakeTimerScope(node: ESTree.Node) {
+  let current = node;
+  let sharedSetup = false;
+
+  while (current.type !== "Program") {
+    const call =
+      current.type === "ArrowFunctionExpression" ||
+      current.type === "FunctionExpression"
+        ? current.parent
+        : null;
+
+    const name =
+      call?.type === "CallExpression" ? calleeRoot(call.callee) : undefined;
+
+    if (sharedSetup) {
+      if (name === "describe" || name === "suite") {
+        return current;
+      }
+    } else if (testCallees.has(name ?? "")) {
+      if (name === "beforeEach" || name === "beforeAll") {
+        sharedSetup = true;
+      } else {
+        return current;
+      }
+    }
+
+    current = current.parent;
+  }
+
+  return current;
+}
+
 const inTestBody: (
   node: ESTree.Node,
   runNow: ReadonlySet<string>,
@@ -183,7 +215,7 @@ export const noFixedSleep = defineRule({
     const runNow = new Set(options?.runNow ?? defaultRunNow);
     const timers = new Set<string>();
     const sleeps: ESTree.Node[] = [];
-    let fakeTimers = false;
+    const fakeTimers = new Set<ESTree.Node>();
 
     function isSleep(node: ESTree.Node) {
       if (node.type === "NewExpression") {
@@ -205,6 +237,20 @@ export const noFixedSleep = defineRule({
       );
     }
 
+    function usesFakeTimers(node: ESTree.Node) {
+      let current: ESTree.Node | null = node;
+
+      while (current) {
+        if (fakeTimers.has(current)) {
+          return true;
+        }
+
+        current = current.parent;
+      }
+
+      return false;
+    }
+
     return {
       ImportDeclaration(node) {
         if (!timerModules.has(node.source.value)) {
@@ -223,7 +269,7 @@ export const noFixedSleep = defineRule({
       },
       CallExpression(node) {
         if (isMember(node.callee, "vi", "useFakeTimers")) {
-          fakeTimers = true;
+          fakeTimers.add(fakeTimerScope(node));
         }
       },
       AwaitExpression(node) {
@@ -232,7 +278,12 @@ export const noFixedSleep = defineRule({
         }
       },
       "Program:exit"(program) {
-        reportAllowed(context, program, fakeTimers ? [] : sleeps, "sleep");
+        reportAllowed(
+          context,
+          program,
+          sleeps.filter((node) => !usesFakeTimers(node)),
+          "sleep",
+        );
       },
     };
   },
