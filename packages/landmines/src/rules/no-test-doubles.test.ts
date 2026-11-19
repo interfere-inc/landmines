@@ -3,6 +3,52 @@ import { expect, test } from "vitest";
 
 import { lint, lintBatch } from "./rule.test-utils";
 
+const vitePlusReplacements = [
+  'import { vi } from "vite-plus/test"; vi.mock("client");',
+  'import { vi as tools } from "vite-plus/test"; tools.fn(() => 1);',
+  'import { vitest } from "vite-plus/test"; vitest.stubGlobal("fetch", fetcher);',
+  'import * as testing from "vite-plus/test"; testing.vi.mock("client");',
+  'import * as testing from "vite-plus/test"; testing.vitest.fn(() => 1);',
+  'import * as testing from "vite-plus/test"; const { vi: tools } = testing; tools.mock("client");',
+  'import { vi } from "vite-plus/test"; const tools = vi; tools.stubGlobal("fetch", fetcher);',
+];
+
+test.each(lintBatch(vitePlusReplacements, false, "testing"))(
+  "rejects behavior replacements imported from Vite+: %s",
+  (_code, result) => {
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-test-doubles");
+  },
+);
+
+const vitePlusObservations = [
+  'import { vi } from "vite-plus/test"; const observer = vi.fn();',
+  'import { vi } from "vite-plus/test"; vi.spyOn(client, "send");',
+  'import { vi } from "vite-plus/test"; vi.mock("client", { spy: true });',
+  'import { vi } from "vite-plus/test"; function run(vi) { vi.mock("client"); }',
+  'import { vi } from "vite-plus"; vi.mock("client");',
+];
+
+test.each(lintBatch(vitePlusObservations, false, "testing"))(
+  "retains observation-only and unrelated Vite+ bindings: %s",
+  (_code, result) => {
+    expect(result.status).toBe(0);
+  },
+);
+
+test("recognizes Vite+ imports in support files without test suffixes", () => {
+  const result = lint(
+    'import { expect } from "vite-plus/test"; globalThis.fetch = replacement;',
+    false,
+    "testing",
+    undefined,
+    "support.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("no-test-doubles");
+});
+
 const behaviorReplacements = [
   'import { env, withEnv } from "cloudflare:workers"; withEnv({ ...env, TOKEN: { get: async () => "key" } }, run);',
   'import { env } from "cloudflare:workers"; use({ ...env, BOT_SIGNING_KEYS: { get: async () => "key" } });',
