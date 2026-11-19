@@ -9,6 +9,7 @@ const directives = [
   /^(?:c8|v8|istanbul)\s+ignore\b/u,
   /^(?:@|#)__(?:PURE|NO_SIDE_EFFECTS|INLINE|NOINLINE)__$/u,
   /^@vite-ignore$/u,
+  /^@(?:vitest|jest)-environment(?:-options)?\s+\S/u,
   /^webpack(?:ChunkName|Mode|Prefetch|Preload|Ignore|Include|Exclude|Exports|FetchPriority):/u,
   /^(?:@jsx|@jsxFrag|@jsxImportSource|@jsxRuntime)\s+\S/u,
   /^\/\s*<(?:reference|amd-module|amd-dependency)\s/u,
