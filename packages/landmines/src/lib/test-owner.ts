@@ -190,6 +190,14 @@ export function testOwner(testFilename: string, imports: readonly string[]) {
 
   const resolved = resolve(filename, imports);
 
+  if (
+    resolved.some(
+      (target) => !target.startsWith(`${source}${sep}`) && !isCompanion(target),
+    )
+  ) {
+    return;
+  }
+
   const companions = resolved.filter(
     (target) => target.startsWith(`${source}${sep}`) && isCompanion(target),
   );
