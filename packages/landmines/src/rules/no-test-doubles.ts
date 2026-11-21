@@ -1,5 +1,17 @@
 import { defineRule } from "@oxlint/plugins";
 import type { ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
+import { z } from "zod";
+
+const appFactory = z.object({
+  name: z.string().min(1),
+  from: z.string().min(1),
+});
+
+type AppFactory = z.infer<typeof appFactory>;
+
+const noTestDoublesOptions = z
+  .tuple([z.object({ appFactories: z.array(appFactory).optional() })])
+  .or(z.tuple([]));
 
 const replacements = new Set([
   "mockImplementation",
@@ -1498,6 +1510,7 @@ function honoReceiver(
   source: SourceCode,
   initial: ESTree.Node,
   filename: string,
+  factories: readonly AppFactory[],
 ) {
   const pending = [initial];
   const seen = new Set<ESTree.Node>();
@@ -1531,6 +1544,14 @@ function honoReceiver(
 
       if (node.type === "CallExpression") {
         const { callee } = invokedFunction(source, node);
+
+        if (
+          factories.some(({ name, from }) =>
+            cloudflareImport(source, callee, name, from),
+          )
+        ) {
+          return true;
+        }
 
         if (callee.type === "CallExpression") {
           pending.push(callee);
@@ -1973,7 +1994,26 @@ function rawServiceBindings(source: SourceCode, initial: ESTree.Node) {
 export const noTestDoubles = defineRule({
   meta: {
     type: "problem",
-    schema: [],
+    schema: [
+      {
+        type: "object",
+        properties: {
+          appFactories: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", minLength: 1 },
+                from: { type: "string", minLength: 1 },
+              },
+              required: ["name", "from"],
+              additionalProperties: false,
+            },
+          },
+        },
+        additionalProperties: false,
+      },
+    ],
     docs: {
       description:
         "Keep real implementations in tests; intercept network requests with MSW and allow observation-only spies.",
@@ -1985,6 +2025,8 @@ export const noTestDoubles = defineRule({
   },
   create(context) {
     const source = context.sourceCode;
+    const [settings] = noTestDoublesOptions.parse(context.options);
+    const appFactories = settings?.appFactories ?? [];
 
     const testCode =
       /(?:^|\/)(?:__tests__|tests?|testing|test-utils)(?:\/|$)|(?:^|[/.])(?:test|spec|fixture|mock|setup|commands)(?:\.[^/]*)?$/u.test(
@@ -2174,7 +2216,7 @@ export const noTestDoubles = defineRule({
           callee.type === "MemberExpression" &&
           propertyName(source, callee) === "request" &&
           args[2] &&
-          honoReceiver(source, callee.object, context.filename)
+          honoReceiver(source, callee.object, context.filename, appFactories)
         ) {
           for (const binding of handwrittenBindings(source, args[2])) {
             if (!reportedBindings.has(binding)) {

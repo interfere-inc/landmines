@@ -21,13 +21,22 @@ const rules = {
   testing: "no-test-doubles",
 };
 
+type Target =
+  | keyof typeof rules
+  | `${keyof typeof rules | "structure"}/${string}`;
+
 function runLint(
   codes: readonly string[],
   fix = false,
-  plugin: keyof typeof rules = "testing",
+  target: Target = "testing",
   configuration?: string,
   filename = "fixture.tsx",
+  typeAware = false,
 ) {
+  const [plugin, rule] = target.includes("/")
+    ? target.split("/")
+    : [target, rules[target as keyof typeof rules]];
+
   const directory = mkdtempSync(join(tmpdir(), "oxlint-rule-"));
 
   const files = codes.map((_, index) =>
@@ -57,7 +66,7 @@ function runLint(
             ),
           },
         ],
-        rules: { [`landmines-${plugin}/${rules[plugin]}`]: "error" },
+        rules: { [`landmines-${plugin}/${rule}`]: "error" },
       }),
     );
 
@@ -69,6 +78,7 @@ function runLint(
         "--threads",
         "1",
         ...(fix ? ["--fix"] : []),
+        ...(typeAware ? ["--type-aware"] : []),
         ...(codes.length > 1 ? ["--format", "json"] : []),
         ...files,
       ],
@@ -135,9 +145,10 @@ function runLint(
 
 type LintOptions = [
   fix?: boolean,
-  plugin?: keyof typeof rules,
+  target?: Target,
   configuration?: string,
   filename?: string,
+  typeAware?: boolean,
 ];
 
 export function lint(code: string, ...options: LintOptions) {
@@ -164,15 +175,10 @@ export function lintBatch(codes: readonly string[], ...options: LintOptions) {
   });
 }
 
-interface RuleOptions {
-  allow?: Record<string, number>;
-  runNow?: string[];
-}
-
 export function ruleConfiguration(
   directory: string,
   rule: string,
-  options?: RuleOptions,
+  options?: Readonly<Record<string, unknown>>,
 ) {
   const [plugin] = rule.split("/");
   const file = join(directory, `${crypto.randomUUID()}.json`);

@@ -59,11 +59,13 @@
     "@babel/parser": "8.0.4",
     "@babel/types": "8.0.4",
     "@oxlint/plugins": "1.81.0",
+    "jsonc-parser": "3.3.1",
     "oxc-resolver": "11.24.2",
     "zod": "4.6.6"
   },
   "devDependencies": {
     "@types/node": "26.4.1",
+    "eslint": "10.15.0",
     "oxlint": "1.81.0",
     "tsdown": "0.23.0",
     "typescript": "7.0.2",

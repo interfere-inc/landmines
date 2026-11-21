@@ -1,7 +1,10 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-import { lint, lintBatch } from "./rule.test-utils";
+import { lint, lintBatch, ruleConfiguration } from "./rule.test-utils";
 
 const behaviorReplacements = [
   'import { env, withEnv } from "cloudflare:workers"; withEnv({ ...env, TOKEN: { get: async () => "key" } }, run);',
@@ -857,6 +860,28 @@ test.each(lintBatch(rawHonoResponses, false, "testing"))(
     expect(result.status).toBe(1);
   },
 );
+
+const factoryApp =
+  'import { createApp } from "@acme/http"; const app = createApp()({service:"gateway"}); app.request("/", {}, {QUEUE: {send: async () => {}}});';
+
+test("detects handwritten bindings passed to a configured app factory", () => {
+  const directory = mkdtempSync(join(tmpdir(), "no-test-doubles-factory-"));
+
+  try {
+    const configuration = ruleConfiguration(
+      directory,
+      "testing/no-test-doubles",
+      {
+        appFactories: [{ name: "createApp", from: "@acme/http" }],
+      },
+    );
+
+    expect(lint(factoryApp, false, "testing", configuration).status).toBe(1);
+    expect(lint(factoryApp, false, "testing").status).toBe(0);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 const realHonoBindings = [
   'import { Hono } from "another-router"; new Hono().request("/", {}, {API: {get: () => null}});',
