@@ -48,13 +48,13 @@ Requires Oxlint 1.81 or later and Node 22.18 or later.
 
 Tests that can't lie.
 
-| Rule                 | What it stops                                                                                                                                                                                                                                 |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `no-test-doubles`    | Replacing dependency behaviour in tests: module mocks, `vi.fn(impl)`, stubbed globals, patched prototypes, hand-written bindings and fake responses. Use the real implementation and MSW for the network. Observation-only spies are allowed. |
+| Rule                 | What it stops                                                                                                                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `no-test-doubles`    | Replacing dependency behaviour in tests: module mocks, `vi.fn(impl)`, stubbed globals, patched prototypes, hand-written bindings and fake responses. Use the real implementation and MSW for the network. Observation-only spies are allowed.  |
 | `strict-msw`         | Starting MSW without `onUnhandledFrame: "error"` (msw 3) or `onUnhandledRequest: "error"` (msw 2), or with either option lenient, so unmocked requests reach the network. msw 2 ignores `onUnhandledFrame`, so set `onUnhandledRequest` there. |
-| `no-fixed-sleep`     | Awaiting a fixed real-time delay in a test or hook. Await the operation or a signal it emits.                                                                                                                                                 |
-| `no-unsignaled-poll` | `expect.poll` and `vi.waitFor` on request recorders and spy state, which race a deadline instead of awaiting an event.                                                                                                                        |
-| `no-flake-masking`   | Test retries and raised timeouts, per test or in Vitest config. A test that passes on rerun is a flake to fix.                                                                                                                                |
+| `no-fixed-sleep`     | Awaiting a fixed real-time delay in a test or hook. Await the operation or a signal it emits.                                                                                                                                                  |
+| `no-unsignaled-poll` | `expect.poll` and `vi.waitFor` on request recorders and spy state, which race a deadline instead of awaiting an event.                                                                                                                         |
+| `no-flake-masking`   | Test retries and raised timeouts, per test or in Vitest config. A test that passes on rerun is a flake to fix.                                                                                                                                 |
 
 `no-fixed-sleep`, `strict-msw` and `no-flake-masking` accept a per-file
 allowlist with an exact count, so you can adopt them in an existing codebase
@@ -119,7 +119,7 @@ to `["WARNING"]`; add `"SAFETY"` to keep the `// SAFETY:` comments that
 
 | Rule              | What it stops                                                                                                                         |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `colocated-tests` | Tests detached from the implementation they import. Tests live beside their subject or in its local `tests/` directory.               |
+| `colocated-tests` | Tests detached from the implementation they import. Tests live beside their subject or in its local `test/` directory.                |
 | `test-file-names` | `.spec.ts`, `.tests.ts`, `helpers.ts`, `mocks.ts` and friends. Use `.test.ts`, `.fixture.ts` and `.test-utils.ts`.                    |
 | `package-exports` | Unrestricted source exports such as `"./*": "./src/*.ts"`. Declare explicit entrypoints or named public namespaces in `package.json`. |
 
