@@ -40,6 +40,11 @@ const sleeps = [
   "afterEach(() => load().finally(async () => { await scheduler.wait(1); }));",
   "test('x', async () => { await act(() => load().then(async () => { await scheduler.wait(1); })); });",
   "test('x', async () => { await test.step('open', async () => { await scheduler.wait(1); }); });",
+  "const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)); test('x', async () => { await sleep(200); });",
+  "test('x', async () => { await pause(200); }); function pause(ms) { return new Promise((resolve) => { setTimeout(resolve, ms); }); }",
+  "const nap = function (ms) { return Bun.sleep(ms); }; beforeEach(async () => { await nap(5); });",
+  'import { setTimeout as wait } from "node:timers/promises"; const sleep = (ms) => wait(ms); test("x", async () => { await sleep(5); });',
+  "test('x', async () => { jest.useRealTimers(); await scheduler.wait(1); });",
 ];
 
 const signals = [
@@ -59,6 +64,10 @@ const signals = [
   "test('x', async () => { await act(async () => { serve(async () => { await scheduler.wait(10); return new Response(); }); }); });",
   "async function settle() { await act(async () => { await scheduler.wait(1); }); } test('x', async () => { await settle(); });",
   "act(async () => { await scheduler.wait(1); });",
+  'import { expect, jest, test } from "@jest/globals"; test("x", async () => { jest.useFakeTimers({ advanceTimers: true }); await new Promise((resolve) => setTimeout(resolve, 200)); expect(1).toBe(1); });',
+  'import { jest, test } from "bun:test"; test("x", async () => { jest.useFakeTimers(); await new Promise((resolve) => setTimeout(resolve, 200)); });',
+  "const load = (id) => fetch(id); test('x', async () => { await load('a'); });",
+  "const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)); export async function retry() { await sleep(5); }",
 ];
 
 test.each(
