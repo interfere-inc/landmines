@@ -53,11 +53,11 @@ function variableOf(source: SourceCode, node: ESTree.Node, name: string) {
   return null;
 }
 
-function testBinding(
+const testBinding: (
   source: SourceCode,
   identifier: ESTree.Node & { name: string },
-  seen = new Set<Variable>(),
-): boolean {
+  seen?: Set<Variable>,
+) => boolean = (source, identifier, seen = new Set<Variable>()) => {
   const variable = variableOf(source, identifier, identifier.name);
 
   if (variable === null || variable.defs.length === 0) {
@@ -87,7 +87,7 @@ function testBinding(
 
     return root !== null && testBinding(source, root, seen);
   });
-}
+};
 
 function playwrightImport(source: SourceCode, identifier: ESTree.Node) {
   if (identifier.type !== "Identifier") {
