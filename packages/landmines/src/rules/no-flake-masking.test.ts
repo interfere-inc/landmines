@@ -56,6 +56,11 @@ const retries = [
   "export default defineConfig({ test: { retry: 2 } });",
   "export default defineConfig({ test: { retry: process.env.CI ? 2 : 0 } });",
   "export default defineConfig({ test: { projects: [{ test: { name: 'node', retry: 1 } }] } });",
+  'import { defineConfig } from "@playwright/test";\nexport default defineConfig({ retries: 2 });',
+  'import { defineConfig } from "@playwright/test";\nexport default defineConfig({ projects: [{ name: "chromium", retries: 3 }] });',
+  'import { test } from "@playwright/test";\ntest.describe.configure({ retries: 2 });',
+  'import { jest } from "@jest/globals";\njest.retryTimes(3);',
+  "jest.retryTimes(1);",
 ];
 
 const timeouts = [
@@ -68,6 +73,9 @@ const timeouts = [
   'test.each([1])("loads %i", async () => {}, 20_000);',
   'test.skipIf(ci)("loads", async () => {}, 20_000);',
   'describe("loader", { timeout: 60_000 }, () => {});',
+  'import { test } from "bun:test";\ntest("loads", async () => {}, 60_000);',
+  'import { test as base } from "@playwright/test";\nconst test = base.extend({});\ntest("loads", async () => {}, 60_000);',
+  'import { test } from "./fixtures";\ntest("loads", async () => {}, 60_000);',
   "vi.setConfig({ testTimeout: 45_000 });",
   "vi.setConfig({ hookTimeout: 45_000 });",
   "export default defineConfig({ test: { testTimeout: 30_000, hookTimeout: 60_000 } });",
@@ -88,6 +96,13 @@ const valid = [
   "queue.retry({ delaySeconds: 30 });",
   "const policy = { retry: { maxAttempts: 1 } };",
   "vi.setConfig({ fakeTimers: { now: 0 } });",
+  'function describe(value: string, suffix: string, options: { separator: string }) { return value + options.separator + suffix; }\nconst options = { separator: " " };\nexport const label = describe("first", "second", options);',
+  'const suite = { add(name: string, input: string, expected: number) {} };\nsuite.add("parses dates", "2026-01-01", 3);',
+  "const test = (name: string, input: string, at: Date) => name;\ntest('recording', 'r1', new Date());",
+  'import { defineConfig } from "@playwright/test";\nexport default defineConfig({ retries: 0 });',
+  "jest.retryTimes(0);",
+  "export default defineConfig({ retries: 2 });",
+  "const flaky = { describe: { configure() {} } };\nflaky.describe.configure({ retries: 2 });",
 ];
 
 test.each(lintBatch(retries, false, "testing", config))(
