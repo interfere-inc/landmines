@@ -1,5 +1,23 @@
 # @interfere/landmines
 
+## 0.2.0
+
+### Minor Changes
+
+- [#46](https://github.com/interfere-inc/landmines/pull/46) [`b671898`](https://github.com/interfere-inc/landmines/commit/b671898fbdadc7f72c9acb25d50d5c565afaf074) Thanks [@skve](https://github.com/skve)! - Add 23 rules that Interfere ran in its monorepo: `no-conditional-expect`, `no-parameter-branch`, `no-imported-mutation`, `no-elapsed-time-bound`, `no-cold-start-in-test`, `no-cold-import-in-test`, `no-stale-render-assertion`, `no-styling-class-assertion`, `no-clipboard-read-text`, `no-project-max-workers`, `declared-test-inputs`, `no-silent-catch`, `no-inline-hex-encoding`, `no-self-container-query`, `padding-between-statements`, `no-scripts-directory`, `no-github-scripts`, `package-scripts`, `max-file-lines`, `max-exports-per-module`, `max-files-per-directory`, `no-prefix-cluster` and `test-dir-only-cross-functional`.
+  
+  `no-test-doubles` accepts `appFactories` to recognise your own Hono app factories, and `no-comments` keeps `@boundaries-ignore` directives.
+
+- [#48](https://github.com/interfere-inc/landmines/pull/48) [`3a67b75`](https://github.com/interfere-inc/landmines/commit/3a67b756fa23b9ce635bb503296539648f707e39) Thanks [@skve](https://github.com/skve)! - Ship one `landmines` plugin and group its rules by Oxlint category.
+  
+  Breaking: the `landmines-testing`, `landmines-style`, `landmines-structure` and `landmines-types` plugins and their `@interfere/landmines/testing`, `/style`, `/structure` and `/types` entrypoints are gone. Register `{ "name": "landmines", "specifier": "@interfere/landmines" }` and rename rule keys to `landmines/<rule>`.
+  
+  Configurations now follow the categories: `recommended` (correctness and suspicious), `correctness`, `suspicious`, `pedantic`, `style`, `restriction` and `all`. Correctness, suspicious and restriction rules are errors; pedantic and style rules are warnings.
+
+### Patch Changes
+
+- [#46](https://github.com/interfere-inc/landmines/pull/46) [`b671898`](https://github.com/interfere-inc/landmines/commit/b671898fbdadc7f72c9acb25d50d5c565afaf074) Thanks [@skve](https://github.com/skve)! - Fix rule bugs reported in issues [#22](https://github.com/interfere-inc/landmines/issues/22) and [#37](https://github.com/interfere-inc/landmines/issues/37)–[#44](https://github.com/interfere-inc/landmines/issues/44): `no-test-doubles` recognises `vite-plus/test`; `strict-msw` requires every unhandled option to be strict; `no-flake-masking` ignores local bindings named like test functions and reports Playwright and Jest retries; `no-fixed-sleep` reports same-file sleep helpers and honours `jest.useFakeTimers()`; `package-exports` reports each manifest once; `colocated-tests` points at the `test/` directory that `test-file-names` accepts.
+
 ## 0.1.1
 
 ### Patch Changes
