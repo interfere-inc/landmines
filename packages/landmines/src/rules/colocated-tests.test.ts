@@ -58,11 +58,11 @@ function lint(filename: string, code: string, repository = false) {
       categories: { correctness: "off" },
       jsPlugins: [
         {
-          name: "landmines-structure",
-          specifier: join(root, "packages/landmines/src/plugins/structure.ts"),
+          name: "landmines",
+          specifier: join(root, "packages/landmines/src/plugin.ts"),
         },
       ],
-      rules: { "landmines-structure/colocated-tests": "error" },
+      rules: { "landmines/colocated-tests": "error" },
     }),
   );
 
@@ -199,7 +199,7 @@ test("enforces colocation through the repository configuration", () => {
   );
 
   expect(result.status).toBe(1);
-  expect(result.stdout).toContain("landmines-structure(colocated-tests)");
+  expect(result.stdout).toContain("landmines(colocated-tests)");
 });
 
 test("finds dynamically imported subjects", () => {
@@ -402,7 +402,7 @@ test("allows an explicit entrypoint exception with an incidental local helper", 
   expect(
     lint(
       "test/http.worker.test.ts",
-      "/* oxlint-disable landmines-structure/colocated-tests -- Exercises the Worker HTTP entrypoint; policy supplies request setup. */\nimport { exports } from 'cloudflare:workers'; import { policy } from '../src/recovery/policy'; export const response = exports.default.fetch(new Request('https://example.com', { method: policy ? 'GET' : 'POST' }));",
+      "/* oxlint-disable landmines/colocated-tests -- Exercises the Worker HTTP entrypoint; policy supplies request setup. */\nimport { exports } from 'cloudflare:workers'; import { policy } from '../src/recovery/policy'; export const response = exports.default.fetch(new Request('https://example.com', { method: policy ? 'GET' : 'POST' }));",
     ).status,
   ).toBe(0);
 });

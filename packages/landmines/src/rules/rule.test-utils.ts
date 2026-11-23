@@ -33,9 +33,9 @@ function runLint(
   filename = "fixture.tsx",
   typeAware = false,
 ) {
-  const [plugin, rule] = target.includes("/")
-    ? target.split("/")
-    : [target, rules[target as keyof typeof rules]];
+  const rule = target.includes("/")
+    ? target.split("/").at(-1)
+    : rules[target as keyof typeof rules];
 
   const directory = mkdtempSync(join(tmpdir(), "oxlint-rule-"));
 
@@ -60,13 +60,11 @@ function runLint(
         categories: { correctness: "off" },
         jsPlugins: [
           {
-            name: `landmines-${plugin}`,
-            specifier: fileURLToPath(
-              new URL(`../plugins/${plugin}.ts`, import.meta.url),
-            ),
+            name: "landmines",
+            specifier: fileURLToPath(new URL("../plugin.ts", import.meta.url)),
           },
         ],
-        rules: { [`landmines-${plugin}/${rule}`]: "error" },
+        rules: { [`landmines/${rule}`]: "error" },
       }),
     );
 
@@ -180,7 +178,6 @@ export function ruleConfiguration(
   rule: string,
   options?: Readonly<Record<string, unknown>>,
 ) {
-  const [plugin] = rule.split("/");
   const file = join(directory, `${crypto.randomUUID()}.json`);
 
   writeFileSync(
@@ -189,14 +186,12 @@ export function ruleConfiguration(
       categories: { correctness: "off" },
       jsPlugins: [
         {
-          name: `landmines-${plugin}`,
-          specifier: fileURLToPath(
-            new URL(`../plugins/${plugin}.ts`, import.meta.url),
-          ),
+          name: "landmines",
+          specifier: fileURLToPath(new URL("../plugin.ts", import.meta.url)),
         },
       ],
       rules: {
-        [`landmines-${rule}`]:
+        [`landmines/${rule.split("/").at(-1)}`]:
           options === undefined ? "error" : ["error", options],
       },
     }),

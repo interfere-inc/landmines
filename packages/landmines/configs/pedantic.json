@@ -1,0 +1,15 @@
+{
+  "jsPlugins": [
+    {
+      "name": "landmines",
+      "specifier": "@interfere/landmines"
+    }
+  ],
+  "rules": {
+    "landmines/declared-test-inputs": "warn",
+    "landmines/max-exports-per-module": "warn",
+    "landmines/max-file-lines": "warn",
+    "landmines/max-files-per-directory": "warn",
+    "landmines/no-prefix-cluster": "warn"
+  }
+}

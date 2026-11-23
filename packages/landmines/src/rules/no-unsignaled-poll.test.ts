@@ -64,7 +64,7 @@ test.each(
   lintBatch(unsignaled, false, "testing", configuration(), "fixture.test.ts"),
 )("rejects a deadline-bound poll on recorder state: %s", (_, result) => {
   expect(result.status).toBe(1);
-  expect(result.output).toContain("landmines-testing(no-unsignaled-poll)");
+  expect(result.output).toContain("landmines(no-unsignaled-poll)");
   expect(result.output).toContain("Await a signal instead of polling");
 });
 

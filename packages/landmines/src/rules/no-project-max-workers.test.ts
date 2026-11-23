@@ -53,7 +53,7 @@ test.each(
   ),
 )("rejects ineffective project-level file concurrency: %s", (_, result) => {
   expect(result.status).toBe(1);
-  expect(result.output).toContain("landmines-testing(no-project-max-workers)");
+  expect(result.output).toContain("landmines(no-project-max-workers)");
   expect(result.output).toContain("fileParallelism: false");
 });
 

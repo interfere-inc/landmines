@@ -1,43 +1,27 @@
 {
   "jsPlugins": [
     {
-      "name": "landmines-testing",
-      "specifier": "@interfere/landmines/testing"
-    },
-    { "name": "landmines-style", "specifier": "@interfere/landmines/style" },
-    {
-      "name": "landmines-structure",
-      "specifier": "@interfere/landmines/structure"
-    },
-    { "name": "landmines-types", "specifier": "@interfere/landmines/types" }
+      "name": "landmines",
+      "specifier": "@interfere/landmines"
+    }
   ],
   "rules": {
-    "landmines-testing/no-clipboard-read-text": "error",
-    "landmines-testing/no-cold-import-in-test": "error",
-    "landmines-testing/no-cold-start-in-test": "error",
-    "landmines-testing/no-conditional-expect": "error",
-    "landmines-testing/no-elapsed-time-bound": "error",
-    "landmines-testing/no-fixed-sleep": "error",
-    "landmines-testing/no-flake-masking": "error",
-    "landmines-testing/no-imported-mutation": "error",
-    "landmines-testing/no-parameter-branch": "error",
-    "landmines-testing/no-project-max-workers": "error",
-    "landmines-testing/no-stale-render-assertion": "error",
-    "landmines-testing/no-styling-class-assertion": "error",
-    "landmines-testing/no-test-doubles": "error",
-    "landmines-testing/no-unsignaled-poll": "error",
-    "landmines-testing/strict-msw": "error",
-    "landmines-style/no-comments": "error",
-    "landmines-style/no-inline-hex-encoding": "error",
-    "landmines-style/no-self-container-query": "error",
-    "landmines-style/no-silent-catch": "error",
-    "landmines-structure/colocated-tests": "error",
-    "landmines-structure/max-file-lines": "error",
-    "landmines-structure/no-github-scripts": "error",
-    "landmines-structure/no-scripts-directory": "error",
-    "landmines-structure/package-exports": "error",
-    "landmines-structure/package-scripts": "warn",
-    "landmines-structure/test-file-names": "error",
-    "landmines-types/no-explicit-return-types": "error"
+    "landmines/no-clipboard-read-text": "error",
+    "landmines/no-cold-import-in-test": "error",
+    "landmines/no-cold-start-in-test": "error",
+    "landmines/no-conditional-expect": "error",
+    "landmines/no-elapsed-time-bound": "error",
+    "landmines/no-fixed-sleep": "error",
+    "landmines/no-flake-masking": "error",
+    "landmines/no-imported-mutation": "error",
+    "landmines/no-parameter-branch": "error",
+    "landmines/no-project-max-workers": "error",
+    "landmines/no-self-container-query": "error",
+    "landmines/no-silent-catch": "error",
+    "landmines/no-stale-render-assertion": "error",
+    "landmines/no-styling-class-assertion": "error",
+    "landmines/no-test-doubles": "error",
+    "landmines/no-unsignaled-poll": "error",
+    "landmines/strict-msw": "error"
   }
 }

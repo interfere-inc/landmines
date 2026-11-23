@@ -5,10 +5,10 @@ import { Linter } from "eslint";
 import type { ESLint } from "eslint";
 import { afterAll, expect, test } from "vitest";
 
-import structure from "../plugins/structure";
+import landmines from "../plugin";
 import { bespokeScripts } from "./package-scripts";
 
-const plugin = structure as unknown as ESLint.Plugin;
+const plugin = landmines as unknown as ESLint.Plugin;
 
 const root = mkdtempSync(join(tmpdir(), "package-scripts-"));
 
@@ -75,9 +75,9 @@ function lintPackage(
       "export const value = 1;\n",
       {
         files: ["**/*.ts"],
-        plugins: { "landmines-structure": plugin },
+        plugins: { landmines: plugin },
         rules: {
-          "landmines-structure/package-scripts":
+          "landmines/package-scripts":
             allowed === undefined
               ? "error"
               : ["error", { allow: { [`${name}/package.json`]: allowed } }],
