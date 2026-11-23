@@ -35,7 +35,7 @@ export function packageDirectory(directory: string) {
   return current;
 }
 
-function companionImports(filename: string) {
+export function fileImports(filename: string) {
   const imports: string[] = [];
 
   let file;
@@ -105,6 +105,44 @@ function companionDirectory(filename: string, source: string) {
     : join(source, ...parts.slice(0, support));
 }
 
+function localModules(
+  importer: string,
+  directory: string,
+  specifiers: readonly string[],
+) {
+  return specifiers.flatMap((specifier) => {
+    const target = resolver.resolveFileSync(importer, specifier).path;
+
+    if (
+      !target?.startsWith(`${directory}${sep}`) ||
+      !/\.[cm]?[jt]sx?$/u.test(target) ||
+      /\.d\.[cm]?ts$/u.test(target) ||
+      packageDirectory(dirname(target)) !== directory
+    ) {
+      return [];
+    }
+
+    return [target];
+  });
+}
+
+export function packageSources(
+  testFilename: string,
+  imports: readonly string[],
+) {
+  const filename = realpathSync(testFilename);
+  const directory = packageDirectory(dirname(filename));
+
+  return localModules(filename, directory, imports).filter(
+    (target) =>
+      !companion.test(target) &&
+      !relative(directory, target)
+        .split(sep)
+        .slice(0, -1)
+        .some((part) => testDirectories.has(part)),
+  );
+}
+
 export function testOwner(testFilename: string, imports: readonly string[]) {
   const filename = realpathSync(testFilename);
   const directory = packageDirectory(dirname(filename));
@@ -116,20 +154,7 @@ export function testOwner(testFilename: string, imports: readonly string[]) {
   const ambiguousOwners = new Set<string>();
 
   function resolve(importer: string, specifiers: readonly string[]) {
-    return specifiers.flatMap((specifier) => {
-      const target = resolver.resolveFileSync(importer, specifier).path;
-
-      if (
-        !target?.startsWith(`${directory}${sep}`) ||
-        !/\.[cm]?[jt]sx?$/u.test(target) ||
-        /\.d\.[cm]?ts$/u.test(target) ||
-        packageDirectory(dirname(target)) !== directory
-      ) {
-        return [];
-      }
-
-      return [target];
-    });
+    return localModules(importer, directory, specifiers);
   }
 
   function isCompanion(target: string) {
@@ -161,7 +186,7 @@ export function testOwner(testFilename: string, imports: readonly string[]) {
 
     visited.add(target);
 
-    const nested = companionImports(target);
+    const nested = fileImports(target);
 
     if (nested === undefined) {
       invalidCompanions.add(target);

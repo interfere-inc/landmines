@@ -57,6 +57,7 @@ const functional = [
   "/* @__NO_SIDE_EFFECTS__ */\nexport function count() { return 1; }",
   "import(/* webpackChunkName: 'sdk' */ './sdk');",
   "import(/* @vite-ignore */ path);",
+  "// @boundaries-ignore k6 runtime module\nimport { check } from 'k6';",
   "/// <reference types='node' />\nexport const count = 1;",
   "/* @jsxImportSource react */\nexport const view = <div />;",
   "// SPDX-License-Identifier: MIT\nexport const count = 1;",

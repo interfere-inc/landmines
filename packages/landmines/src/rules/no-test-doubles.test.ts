@@ -1,7 +1,76 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-import { lint, lintBatch } from "./rule.test-utils";
+import { lint, lintBatch, ruleConfiguration } from "./rule.test-utils";
+
+test("reports every double when vi is imported from vite-plus/test", () => {
+  const result = lint(
+    [
+      'import { expect, it, vi } from "vite-plus/test";',
+      "",
+      'import { helper } from "@/util";',
+      "",
+      'vi.mock("@/util", () => ({ helper: 2 }));',
+      'const fetchStub = vi.fn(async () => new Response("{}"));',
+      'vi.stubGlobal("fetch", fetchStub);',
+      "",
+      'it("reads helper", () => {',
+      "  expect(helper).toBe(2);",
+      "});",
+    ].join("\n"),
+    false,
+    "testing",
+    undefined,
+    "money.test.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(
+    result.output.match(/Do not replace test dependency behavior/gu),
+  ).toHaveLength(3);
+});
+
+const vitePlusReplacements = [
+  'import { vi as tools } from "vite-plus/test"; tools.fn(() => 1);',
+  'import { vitest } from "vite-plus/test"; vitest.stubGlobal("fetch", fetcher);',
+  'import * as testing from "vite-plus/test"; testing.vi.mock("client");',
+  'import * as testing from "vite-plus/test"; const { vi: tools } = testing; tools.mock("client");',
+];
+
+test.each(lintBatch(vitePlusReplacements, false, "testing"))(
+  "rejects doubles from vite-plus/test bindings: %s",
+  (_code, result) => {
+    expect(result.status).toBe(1);
+  },
+);
+
+test.each(
+  lintBatch(
+    [
+      'import { vi } from "vite-plus/test"; const observer = vi.fn();',
+      'import { vi } from "vite-plus"; vi.mock("client");',
+    ],
+    false,
+    "testing",
+  ),
+)("accepts observers and unrelated vite-plus bindings: %s", (_code, result) => {
+  expect(result.status).toBe(0);
+});
+
+test("treats a vite-plus/test import as test code", () => {
+  const result = lint(
+    'import { expect } from "vite-plus/test"; globalThis.fetch = replacement;',
+    false,
+    "testing",
+    undefined,
+    "support.ts",
+  );
+
+  expect(result.status).toBe(1);
+});
 
 const behaviorReplacements = [
   'import { env, withEnv } from "cloudflare:workers"; withEnv({ ...env, TOKEN: { get: async () => "key" } }, run);',
@@ -857,6 +926,28 @@ test.each(lintBatch(rawHonoResponses, false, "testing"))(
     expect(result.status).toBe(1);
   },
 );
+
+const factoryApp =
+  'import { createApp } from "@acme/http"; const app = createApp()({service:"gateway"}); app.request("/", {}, {QUEUE: {send: async () => {}}});';
+
+test("detects handwritten bindings passed to a configured app factory", () => {
+  const directory = mkdtempSync(join(tmpdir(), "no-test-doubles-factory-"));
+
+  try {
+    const configuration = ruleConfiguration(
+      directory,
+      "testing/no-test-doubles",
+      {
+        appFactories: [{ name: "createApp", from: "@acme/http" }],
+      },
+    );
+
+    expect(lint(factoryApp, false, "testing", configuration).status).toBe(1);
+    expect(lint(factoryApp, false, "testing").status).toBe(0);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 const realHonoBindings = [
   'import { Hono } from "another-router"; new Hono().request("/", {}, {API: {get: () => null}});',
