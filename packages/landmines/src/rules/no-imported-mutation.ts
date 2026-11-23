@@ -31,41 +31,88 @@ function imported(scope: Scope | null, name: string) {
   return false;
 }
 
+const mutators: Record<string, readonly string[]> = {
+  Object: ["assign", "defineProperty", "defineProperties"],
+  Reflect: ["set", "defineProperty", "deleteProperty"],
+};
+
+function mutatedArgument(node: ESTree.CallExpression) {
+  const { callee } = node;
+
+  if (
+    callee.type !== "MemberExpression" ||
+    callee.computed ||
+    callee.object.type !== "Identifier" ||
+    callee.property.type !== "Identifier"
+  ) {
+    return null;
+  }
+
+  if (!mutators[callee.object.name]?.includes(callee.property.name)) {
+    return null;
+  }
+
+  const [target] = node.arguments;
+
+  return target && target.type !== "SpreadElement" ? target : null;
+}
+
 export const noImportedMutation = defineRule({
   meta: {
     type: "problem",
     schema: allowlistSchema,
     docs: {
       description:
-        "Inject test values through options or bindings instead of assigning to an imported module's object.",
+        "Inject test values through options or bindings instead of assigning to, defining or deleting properties of an imported module's object.",
     },
     messages: {
       mutation:
-        "Assigning to a property of an imported binding mutates shared module state that every other test in the isolate reads, and a failed restore leaks it. Inject the value through the function's options, the Worker's test binding or a declared test seam, and make the module value readonly.",
+        "Assigning to, defining or deleting a property of an imported binding (including through Object.assign and Reflect) mutates shared module state that every other test in the isolate reads, and a failed restore leaks it. Inject the value through the function's options, the Worker's test binding or a declared test seam, and make the module value readonly.",
       stale:
         "This file now has {{count}} imported-binding mutations; lower its no-imported-mutation allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0.",
     },
   },
   create(context) {
-    if (!/\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(context.filename)) {
+    if (
+      !/\.(?:test|spec|fixture|test-utils)\.[cm]?[jt]sx?$/u.test(
+        context.filename,
+      )
+    ) {
       return {};
     }
 
     const violations: ESTree.Node[] = [];
 
+    function record(node: ESTree.Node, expression: ESTree.Node) {
+      const target = root(expression);
+
+      if (
+        target &&
+        imported(context.sourceCode.getScope(target), target.name)
+      ) {
+        violations.push(node);
+      }
+    }
+
     return {
       AssignmentExpression(node) {
-        if (node.left.type !== "MemberExpression") {
-          return;
+        if (node.left.type === "MemberExpression") {
+          record(node, node.left);
         }
+      },
+      CallExpression(node) {
+        const target = mutatedArgument(node);
 
-        const target = root(node.left);
-
+        if (target) {
+          record(node, target);
+        }
+      },
+      UnaryExpression(node) {
         if (
-          target &&
-          imported(context.sourceCode.getScope(target), target.name)
+          node.operator === "delete" &&
+          node.argument.type === "MemberExpression"
         ) {
-          violations.push(node);
+          record(node, node.argument);
         }
       },
       "Program:exit"(program) {
