@@ -4,7 +4,7 @@ import { defineRule } from "@oxlint/plugins";
 import { z } from "zod";
 
 import { allowances, isEntryFor } from "../layout/allowance.ts";
-import { allowlistSchema } from "../lib/allowlist.ts";
+import { allowlistProperties } from "../lib/allowlist.ts";
 import { packageDirectory } from "../lib/test-owner.ts";
 
 const standardNames = new Set([
@@ -30,18 +30,22 @@ const standardNames = new Set([
 const sourceRunner =
   /(?:^|[\s;&|(])(?:bun|node|tsx|ts-node)(?:\s+run)?(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+["']?[^\s"';&|]+\.(?:[cm]?[jt]s|tsx)\b/u;
 
+const packageScriptsOptions = z
+  .tuple([z.object({ names: z.array(z.string()).optional() })])
+  .or(z.tuple([]));
+
 const manifestSchema = z.object({
   scripts: z.record(z.string(), z.string()).optional(),
 });
 
-export function bespokeScripts(manifest: string) {
+export function bespokeScripts(
+  manifest: string,
+  names: ReadonlySet<string> = standardNames,
+) {
   const { scripts = {} } = manifestSchema.parse(JSON.parse(manifest));
 
   return Object.entries(scripts)
-    .filter(
-      ([name, command]) =>
-        !standardNames.has(name) || sourceRunner.test(command),
-    )
+    .filter(([name, command]) => !names.has(name) || sourceRunner.test(command))
     .map(([name]) => name)
     .toSorted();
 }
@@ -51,7 +55,16 @@ const claimed = new Map<string, string>();
 export const packageScriptsRule = defineRule({
   meta: {
     type: "suggestion",
-    schema: allowlistSchema,
+    schema: [
+      {
+        type: "object",
+        properties: {
+          ...allowlistProperties,
+          names: { type: "array", items: { type: "string" } },
+        },
+        additionalProperties: false,
+      },
+    ],
     docs: {
       description:
         "Keep package.json scripts to standard task names that call a tool, not bespoke names or TypeScript files run with bun or node.",
@@ -83,7 +96,9 @@ export const packageScriptsRule = defineRule({
       return {};
     }
 
-    const scripts = bespokeScripts(readFileSync(path, "utf8"));
+    const [options] = packageScriptsOptions.parse(context.options);
+    const names = new Set([...standardNames, ...(options?.names ?? [])]);
+    const scripts = bespokeScripts(readFileSync(path, "utf8"), names);
     const manifest = relative(context.cwd, path);
 
     const [, allowed = 0] =
@@ -94,7 +109,7 @@ export const packageScriptsRule = defineRule({
     const data = {
       manifest,
       scripts: scripts.join(", "),
-      standard: [...standardNames].join(", "),
+      standard: [...names].join(", "),
       count: String(scripts.length),
       allowed: String(allowed),
     };

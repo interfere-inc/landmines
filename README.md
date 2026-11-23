@@ -196,6 +196,19 @@ to `["WARNING"]`; add `"SAFETY"` to keep the `// SAFETY:` comments that
 }
 ```
 
+Pass `names` to `package-scripts` to accept more task names as standard, such
+as the steps of a split build. Scripts under those names still fail when they
+run a TypeScript file with `bun` or `node`:
+
+```json
+{
+  "landmines/package-scripts": [
+    "warn",
+    { "names": ["build:js", "build:types"] }
+  ]
+}
+```
+
 `test-dir-only-cross-functional` treats Playwright, `cloudflare:test` `SELF`
 and Worker `exports.default` suites as cross-functional. Pass `crossFunctional`
 (regular expressions matched against the test's source) to add your own

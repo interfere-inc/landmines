@@ -58,7 +58,7 @@ test("bespokeScripts flags suffixed names and TypeScript files run with a runtim
 function lintPackage(
   name: string,
   scripts: Record<string, string>,
-  allowed?: number,
+  options: { allow?: number; names?: string[] } = {},
 ) {
   const directory = join(root, name);
 
@@ -77,10 +77,15 @@ function lintPackage(
         files: ["**/*.ts"],
         plugins: { landmines: plugin },
         rules: {
-          "landmines/package-scripts":
-            allowed === undefined
-              ? "error"
-              : ["error", { allow: { [`${name}/package.json`]: allowed } }],
+          "landmines/package-scripts": [
+            "error",
+            {
+              ...(options.allow !== undefined && {
+                allow: { [`${name}/package.json`]: options.allow },
+              }),
+              ...(options.names && { names: options.names }),
+            },
+          ],
         },
       },
       { filename: join(directory, "src/value.ts") },
@@ -97,19 +102,57 @@ test("package-scripts reports bespoke scripts and holds allowlist entries to exa
     expect.stringContaining("defines bespoke scripts: check:bundle"),
   ]);
 
-  expect(lintPackage("exact", { evals: "braintrust eval" }, 1)).toStrictEqual(
-    [],
-  );
+  expect(
+    lintPackage("exact", { evals: "braintrust eval" }, { allow: 1 }),
+  ).toStrictEqual([]);
 
   expect(
     lintPackage(
       "grown",
       { evals: "braintrust eval", bench: "bun bench.ts" },
-      1,
+      { allow: 1 },
     ),
   ).toStrictEqual([expect.stringContaining("defines 2 bespoke scripts")]);
 
-  expect(lintPackage("stale", { build: "vite build" }, 1)).toStrictEqual([
+  expect(
+    lintPackage("stale", { build: "vite build" }, { allow: 1 }),
+  ).toStrictEqual([
     expect.stringContaining("remove its package-scripts allowlist entry"),
+  ]);
+});
+
+test("bespokeScripts accepts the task names it is given", () => {
+  expect(
+    bespokeScripts(
+      manifest({ "build:js": "tsdown -F emit-js", evals: "braintrust eval" }),
+      new Set(["build:js"]),
+    ),
+  ).toStrictEqual(["evals"]);
+});
+
+test("package-scripts accepts extra standard names from the names option", () => {
+  const scripts = {
+    "build:js": "tsdown -F emit-js",
+    "build:types": "tsdown -F emit-dts",
+  };
+
+  expect(
+    lintPackage("named", scripts, { names: ["build:js", "build:types"] }),
+  ).toStrictEqual([]);
+
+  expect(lintPackage("unnamed", scripts)).toStrictEqual([
+    expect.stringContaining("defines bespoke scripts: build:js, build:types"),
+  ]);
+
+  expect(
+    lintPackage(
+      "still-runs-source",
+      { "build:js": "bun build.ts" },
+      {
+        names: ["build:js"],
+      },
+    ),
+  ).toStrictEqual([
+    expect.stringContaining("defines bespoke scripts: build:js"),
   ]);
 });
