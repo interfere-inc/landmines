@@ -1,5 +1,5 @@
 import { defineRule } from "@oxlint/plugins";
-import type { ESTree } from "@oxlint/plugins";
+import type { ESTree, Scope, SourceCode } from "@oxlint/plugins";
 
 import { z } from "zod";
 
@@ -21,6 +21,83 @@ const testCallees = new Set([
 ]);
 
 const timerModules = new Set(["node:timers/promises", "timers/promises"]);
+
+type TimerBinding = "setTimeout" | "scheduler" | "namespace";
+
+function timerProperty(node: ESTree.MemberExpression) {
+  if (!node.computed && node.property.type === "Identifier") {
+    return node.property.name;
+  }
+
+  if (node.computed && node.property.type === "Literal") {
+    return node.property.value;
+  }
+
+  return null;
+}
+
+const timerBinding: (
+  source: SourceCode,
+  node: ESTree.Node,
+) => TimerBinding | undefined = (source, node) => {
+  if (node.type === "MemberExpression") {
+    const property = timerProperty(node);
+    const object = timerBinding(source, node.object);
+
+    if (object === "namespace") {
+      return property === "setTimeout" || property === "scheduler"
+        ? property
+        : undefined;
+    }
+
+    return object === "scheduler" && property === "wait"
+      ? "setTimeout"
+      : undefined;
+  }
+
+  if (node.type !== "Identifier") {
+    return;
+  }
+
+  for (
+    let scope: Scope | null = source.getScope(node);
+    scope !== null;
+    scope = scope.upper
+  ) {
+    const definition = scope.set.get(node.name)?.defs[0];
+
+    if (!definition) {
+      continue;
+    }
+
+    const { node: importedNode, parent } = definition;
+
+    if (
+      parent?.type !== "ImportDeclaration" ||
+      !timerModules.has(parent.source.value)
+    ) {
+      return;
+    }
+
+    if (importedNode.type === "ImportSpecifier") {
+      const imported =
+        importedNode.imported.type === "Identifier"
+          ? importedNode.imported.name
+          : importedNode.imported.value;
+
+      return imported === "setTimeout" || imported === "scheduler"
+        ? imported
+        : undefined;
+    }
+
+    return importedNode.type === "ImportNamespaceSpecifier" ||
+      importedNode.type === "ImportDefaultSpecifier"
+      ? "namespace"
+      : undefined;
+  }
+
+  return node.name === "scheduler" ? "scheduler" : undefined;
+};
 
 function isMember(node: ESTree.Node, object: string, property: string) {
   return (
@@ -238,7 +315,6 @@ export const noFixedSleep = defineRule({
   create(context) {
     const [options] = noFixedSleepOptions.parse(context.options);
     const runNow = new Set(options?.runNow ?? defaultRunNow);
-    const timers = new Set<string>();
     const sleeps: ESTree.Node[] = [];
     const timedWaits: ESTree.Node[] = [];
     const helpers = new Map<string, ESTree.Node>();
@@ -267,28 +343,12 @@ export const noFixedSleep = defineRule({
       }
 
       return (
-        (node.callee.type === "Identifier" && timers.has(node.callee.name)) ||
-        isMember(node.callee, "scheduler", "wait") ||
+        timerBinding(context.sourceCode, node.callee) === "setTimeout" ||
         isMember(node.callee, "Bun", "sleep")
       );
     }
 
     return {
-      ImportDeclaration(node) {
-        if (!timerModules.has(node.source.value)) {
-          return;
-        }
-
-        for (const specifier of node.specifiers) {
-          if (
-            specifier.type === "ImportSpecifier" &&
-            specifier.imported.type === "Identifier" &&
-            specifier.imported.name === "setTimeout"
-          ) {
-            timers.add(specifier.local.name);
-          }
-        }
-      },
       CallExpression(node) {
         if (
           isMember(node.callee, "vi", "useFakeTimers") ||
