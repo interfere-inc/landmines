@@ -143,3 +143,58 @@ test("ignores allowlist entries that only share a filename suffix", () => {
     ).status,
   ).toBe(1);
 });
+
+const clockLoops = [
+  "async function waitForIngest(page) { const deadline = nowMillis() + 60_000; while (nowMillis() < deadline) { if (await page.getByText('x').isVisible()) return; await page.reload(); } }",
+  "export async function settled() { const deadline = Date.now() + 5000; while (Date.now() < deadline) { if (await ready()) return; await sleep(100); } throw new Error('timeout'); }",
+  "test('x', async () => { const end = performance.now() + 100; do { await tick(); } while (performance.now() < end); });",
+  "test('x', async () => { for (;;) { if (Date.now() > deadline) throw new Error('late'); if (await ready()) break; } });",
+  "test('x', async () => { while (true) { const rows = await query(); if (rows.length > 0 || clock.now() > limit) break; } });",
+  "test('x', async () => { for (let i = 0; new Date() < until; i++) { await probe(i); } });",
+];
+
+const clockFree = [
+  "test('x', async () => { const end = performance.now() + 50; while (performance.now() < end) {} });",
+  "test('x', async () => { for (let attempt = 0; attempt < 3; attempt++) { await send(); } });",
+  "test('x', async () => { while (Date.now() < deadline) { queue.push(() => fetchLater()); } });",
+  "test('x', async () => { while (Date.now() < deadline) { spin(async () => { await tick(); }); } });",
+  "test('x', async () => { for (let i = 0; i < 3; i++) { const started = Date.now(); await run(i); durations.push(Date.now() - started); } });",
+];
+
+test.each(
+  lintBatch(clockLoops, false, "testing", configuration(), "fixture.test.ts"),
+)("rejects a loop that awaits until a clock deadline: %s", (_, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("landmines(no-unsignaled-poll)");
+  expect(result.output).toContain("instead of looping until a clock deadline");
+});
+
+test.each(
+  lintBatch(clockFree, false, "testing", configuration(), "fixture.test.ts"),
+)("allows busy waits, bounded retries and timing loops: %s", (_, result) => {
+  expect(result.status).toBe(0);
+});
+
+test.each([
+  "helper.fixture.ts",
+  "helper.test-utils.ts",
+  "test/helper.ts",
+  "e2e/fixtures/helper.ts",
+])("checks clock loops in test support file %s", (filename) => {
+  expect(
+    lint(clockLoops[1] ?? "", false, "testing", configuration(), filename)
+      .status,
+  ).toBe(1);
+});
+
+test("leaves clock loops in production code alone", () => {
+  expect(
+    lint(
+      clockLoops[1] ?? "",
+      false,
+      "testing",
+      configuration(),
+      "src/deploy.ts",
+    ).status,
+  ).toBe(0);
+});

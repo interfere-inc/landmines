@@ -32,6 +32,7 @@ export const categories = {
   "no-project-max-workers": "correctness",
   "no-scripts-directory": "restriction",
   "no-self-container-query": "correctness",
+  "no-shared-signal": "suspicious",
   "no-silent-catch": "correctness",
   "no-stale-render-assertion": "correctness",
   "no-styling-class-assertion": "suspicious",

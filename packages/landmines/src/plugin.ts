@@ -22,6 +22,7 @@ import { noInlineHexEncoding } from "./rules/no-inline-hex-encoding.ts";
 import { noParameterBranch } from "./rules/no-parameter-branch.ts";
 import { noProjectMaxWorkers } from "./rules/no-project-max-workers.ts";
 import { noSelfContainerQuery } from "./rules/no-self-container-query.ts";
+import { noSharedSignal } from "./rules/no-shared-signal.ts";
 import { noSilentCatch } from "./rules/no-silent-catch.ts";
 import { noStaleRenderAssertion } from "./rules/no-stale-render-assertion.ts";
 import { noStylingClassAssertion } from "./rules/no-styling-class-assertion.ts";
@@ -59,6 +60,7 @@ const plugin = definePlugin({
     "no-project-max-workers": noProjectMaxWorkers,
     "no-scripts-directory": noScriptsDirectory,
     "no-self-container-query": noSelfContainerQuery,
+    "no-shared-signal": noSharedSignal,
     "no-silent-catch": noSilentCatch,
     "no-stale-render-assertion": noStaleRenderAssertion,
     "no-styling-class-assertion": noStylingClassAssertion,

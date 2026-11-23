@@ -165,3 +165,46 @@ test("asks to lower an allowlist entry once its file has fewer sleeps", () => {
   expect(result.status).toBe(1);
   expect(result.output).toContain("This file now has 0 fixed sleeps");
 });
+
+const timedWaits = [
+  "test('x', async ({ page }) => { await page.waitForTimeout(5000); });",
+  "export async function settle(page) { await page.waitForTimeout(SETTLE_MS); }",
+  "export async function open(frame) { await frame.waitForLoadState('networkidle'); }",
+  "test('x', async ({ page }) => { await page.goto(url, { waitUntil: 'networkidle' }); });",
+  "await page.goto(url, { waitUntil: 'networkidle0' });",
+  "test('x', async ({ page }) => { vi.useFakeTimers(); await page.waitForTimeout(1); });",
+];
+
+const signaledWaits = [
+  "test('x', async ({ page }) => { await expect(page.getByText('Saved')).toBeVisible(); });",
+  "test('x', async ({ page }) => { await page.waitForLoadState('domcontentloaded'); });",
+  "test('x', async ({ page }) => { await page.goto(url, { waitUntil: 'load' }); });",
+  "test('x', async ({ page }) => { await page.waitForResponse('**/api/save'); });",
+  "const options = { waitUntil: idle };",
+];
+
+test.each(
+  lintBatch(timedWaits, false, "testing", configuration(), "fixture.e2e.ts"),
+)("rejects a timed Playwright wait anywhere: %s", (_, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("landmines(no-fixed-sleep)");
+  expect(result.output).toContain("Replace this timed Playwright wait");
+});
+
+test.each(
+  lintBatch(signaledWaits, false, "testing", configuration(), "fixture.e2e.ts"),
+)("allows Playwright waits on page state: %s", (_, result) => {
+  expect(result.status).toBe(0);
+});
+
+test("counts timed waits toward the file's allowlist entry", () => {
+  expect(
+    lint(
+      "test('x', async ({ page }) => { await scheduler.wait(1); await page.waitForTimeout(1); });",
+      false,
+      "testing",
+      configuration({ "0/fixture.e2e.ts": 2 }),
+      "fixture.e2e.ts",
+    ).status,
+  ).toBe(0);
+});
