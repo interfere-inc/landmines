@@ -1,5 +1,11 @@
 # @interfere/landmines
 
+## 0.3.0
+
+### Minor Changes
+
+- [#55](https://github.com/interfere-inc/landmines/pull/55) [`087882c`](https://github.com/interfere-inc/landmines/commit/087882cea60032a34af31b7b33f5097d9f8a7830) Thanks [@skve](https://github.com/skve)! - `no-fixed-sleep` also reports Playwright's `waitForTimeout`, `waitForLoadState("networkidle")` and `waitUntil: "networkidle"` anywhere. `no-unsignaled-poll` also reports loops in test files that await until a clock deadline. The new `no-shared-signal` rule (suspicious) reports an `AbortSignal.timeout` stored at module or `describe` scope of a test file and a `const` `AbortController` shared by a file's tests.
+
 ## 0.2.2
 
 ### Patch Changes
