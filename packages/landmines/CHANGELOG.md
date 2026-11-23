@@ -1,5 +1,11 @@
 # @interfere/landmines
 
+## 0.2.2
+
+### Patch Changes
+
+- [#52](https://github.com/interfere-inc/landmines/pull/52) [`c91bac1`](https://github.com/interfere-inc/landmines/commit/c91bac19dda49178b7674265fdbaf112e1baa0c6) Thanks [@skve](https://github.com/skve)! - `no-imported-mutation` also reports `Object.assign`, `Object.defineProperty`, `Object.defineProperties`, `Reflect.set`, `Reflect.defineProperty`, `Reflect.deleteProperty` and `delete` on an imported binding, and checks `*.fixture.*` and `*.test-utils.*` files as well as `*.test.*` and `*.spec.*`.
+
 ## 0.2.1
 
 ### Patch Changes
