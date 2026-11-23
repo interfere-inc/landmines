@@ -18,6 +18,9 @@ function configuration(allow?: Record<string, number>) {
 }
 
 const unsignaled = [
+  "await expect.poll(() => requests).not.toHaveLength(0);",
+  "await expect.poll(() => state.post).not.toHaveBeenCalledWith('old');",
+  "await expect.poll(() => spy).not.toHaveReturned();",
   "await expect.poll(() => requests.length).toBe(1);",
   "await expect.poll(() => requests.length, { timeout: 5000 }).toBe(3);",
   "await expect.poll(() => traffic.requests.length).toBe(1);",
@@ -41,6 +44,10 @@ const unsignaled = [
 ];
 
 const signaled = [
+  "await expect.poll(() => result.current.items).not.toHaveLength(0);",
+  "await expect.poll(() => result.current.save).not.toHaveBeenCalled();",
+  "await expect.poll(() => document.title).not.toBe('Loading');",
+  "await expect.poll(() => status).not.toStrictEqual({ ready: false });",
   "const request = Promise.withResolvers(); await request.promise;",
   "await expect.poll(() => result.current.items.length).toBe(2);",
   "await vi.waitFor(() => expect(result.current.pendingReplies).toHaveLength(1));",
