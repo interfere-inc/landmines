@@ -132,3 +132,47 @@ test.each(
 
   expect(result.output).toContain("lower its strict-msw allowlist entry");
 });
+
+const namespaceServer = 'import * as msw from "msw/node";\n';
+const namespaceWorker = 'import * as msw from "msw/browser";\n';
+
+test.each(
+  lintBatch(
+    [
+      `${namespaceServer}msw.setupServer().listen();`,
+      `${namespaceServer}const network = msw.setupServer(); network.listen({ onUnhandledRequest: "bypass" });`,
+      `${namespaceServer}let network; network = msw.setupServer(); network.listen();`,
+      `${namespaceServer}msw["setupServer"]().listen({ onUnhandledFrame: "warn" });`,
+      `${namespaceServer}const network = msw.setupServer(); export function start() { network.listen(); }`,
+      `${namespaceWorker}await msw.setupWorker().start();`,
+      `${namespaceWorker}const network = msw.setupWorker(); await network.start({ onUnhandledRequest: "bypass" });`,
+      `${namespaceWorker}await msw["setupWorker"]().start({ onUnhandledFrame: "warn" });`,
+    ],
+    false,
+    "testing",
+    config,
+  ),
+)("rejects lenient namespace-import MSW starts: %s", (_code, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("strict-msw");
+});
+
+test.each(
+  lintBatch(
+    [
+      `${namespaceServer}msw.setupServer().listen({ onUnhandledRequest: "error" });`,
+      `${namespaceServer}msw["setupServer"]().listen({ onUnhandledFrame: "error" });`,
+      `${namespaceWorker}await msw.setupWorker().start({ onUnhandledRequest: "error" });`,
+      `${namespaceWorker}await msw["setupWorker"]().start({ onUnhandledFrame: "error" });`,
+      `${namespaceServer}export function start(msw) { msw.setupServer().listen(); }`,
+      `${namespaceServer}{ const msw = helper; msw.setupServer().listen(); }`,
+      'import * as msw from "./test-helper";\nmsw.setupServer().listen();',
+      `${namespaceServer}msw[factory]().listen();`,
+    ],
+    false,
+    "testing",
+    config,
+  ),
+)("accepts strict or unrelated namespace starts: %s", (_code, result) => {
+  expect(result.status).toBe(0);
+});
