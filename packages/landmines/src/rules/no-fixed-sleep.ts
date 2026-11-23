@@ -154,6 +154,41 @@ function resolvesAfterTimeout(node: ESTree.NewExpression) {
   );
 }
 
+const idleStates = new Set(["networkidle", "networkidle0", "networkidle2"]);
+
+function isIdleState(node: ESTree.Node | undefined) {
+  return node?.type === "Literal" && idleStates.has(String(node.value));
+}
+
+function isTimedWait(node: ESTree.CallExpression) {
+  const { callee } = node;
+
+  if (
+    callee.type !== "MemberExpression" ||
+    callee.computed ||
+    callee.property.type !== "Identifier"
+  ) {
+    return false;
+  }
+
+  const [state] = node.arguments;
+
+  return (
+    callee.property.name === "waitForTimeout" ||
+    (callee.property.name === "waitForLoadState" && isIdleState(state))
+  );
+}
+
+function waitsUntilIdle(node: ESTree.Node) {
+  return (
+    node.type === "Property" &&
+    !node.computed &&
+    node.key.type === "Identifier" &&
+    node.key.name === "waitUntil" &&
+    isIdleState(node.value)
+  );
+}
+
 function returned(node: ESTree.Node | null | undefined) {
   if (
     node?.type !== "ArrowFunctionExpression" &&
@@ -189,11 +224,13 @@ export const noFixedSleep = defineRule({
     ],
     docs: {
       description:
-        "Disallow awaiting a fixed real-time sleep in a test or hook body.",
+        "Disallow awaiting a fixed real-time sleep in a test or hook body, and Playwright's timed waits anywhere.",
     },
     messages: {
       sleep:
         "Replace this fixed sleep with a signal: await the operation itself or a promise its handler resolves. To move time, use fake timers (vi.useFakeTimers() or jest.useFakeTimers()) and advance them. A sleep guesses how long real work takes and fails under CPU load.",
+      timedWait:
+        "Replace this timed Playwright wait with the state you need: a web-first assertion (await expect(locator).toBeVisible()), page.waitForResponse, page.waitForEvent or page.waitForFunction. waitForTimeout and networkidle guess how long real work takes and fail under CPU load.",
       stale:
         "This file now has {{count}} fixed sleeps; lower its no-fixed-sleep allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0.",
     },
@@ -203,6 +240,7 @@ export const noFixedSleep = defineRule({
     const runNow = new Set(options?.runNow ?? defaultRunNow);
     const timers = new Set<string>();
     const sleeps: ESTree.Node[] = [];
+    const timedWaits: ESTree.Node[] = [];
     const helpers = new Map<string, ESTree.Node>();
     const helperCalls: [ESTree.Node, string][] = [];
     let fakeTimers = false;
@@ -258,6 +296,15 @@ export const noFixedSleep = defineRule({
         ) {
           fakeTimers = true;
         }
+
+        if (isTimedWait(node)) {
+          timedWaits.push(node);
+        }
+      },
+      Property(node) {
+        if (waitsUntilIdle(node)) {
+          timedWaits.push(node);
+        }
       },
       FunctionDeclaration(node) {
         if (node.id) {
@@ -294,7 +341,14 @@ export const noFixedSleep = defineRule({
           }
         }
 
-        reportAllowed(context, program, fakeTimers ? [] : sleeps, "sleep");
+        reportAllowed(
+          context,
+          program,
+          [...(fakeTimers ? [] : sleeps), ...timedWaits],
+          "sleep",
+          undefined,
+          (node) => (timedWaits.includes(node) ? "timedWait" : "sleep"),
+        );
       },
     };
   },
