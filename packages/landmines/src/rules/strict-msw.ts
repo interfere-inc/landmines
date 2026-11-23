@@ -129,17 +129,30 @@ function namedHandler(source: SourceCode, node: ESTree.Node) {
   );
 }
 
-function strict(source: SourceCode, node: ESTree.Node | undefined) {
+function strictValue(source: SourceCode, node: ESTree.Node) {
   return (
-    node?.type === "ObjectExpression" &&
-    node.properties.some(
+    (node.type === "Literal" && node.value === "error") ||
+    inlineHandler(node) ||
+    namedHandler(source, node)
+  );
+}
+
+function strict(source: SourceCode, node: ESTree.Node | undefined) {
+  if (node?.type !== "ObjectExpression") {
+    return false;
+  }
+
+  const unhandled = node.properties.filter(
+    (property) =>
+      property.type === "Property" &&
+      unhandledOptions.has(keyName(property) ?? ""),
+  );
+
+  return (
+    unhandled.length > 0 &&
+    unhandled.every(
       (property) =>
-        property.type === "Property" &&
-        unhandledOptions.has(keyName(property) ?? "") &&
-        ((property.value.type === "Literal" &&
-          property.value.value === "error") ||
-          inlineHandler(property.value) ||
-          namedHandler(source, property.value)),
+        property.type === "Property" && strictValue(source, property.value),
     )
   );
 }

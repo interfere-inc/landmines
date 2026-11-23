@@ -520,6 +520,7 @@ function namespaceImport(
         parent?.type === "ImportDeclaration" &&
         (specifier === undefined
           ? parent.source.value === "vitest" ||
+            parent.source.value === "vite-plus/test" ||
             parent.source.value === "@jest/globals"
           : parent.source.value === specifier),
     );
@@ -573,7 +574,8 @@ function framework(source: SourceCode, initial: ESTree.Node) {
           : definition.imported.value;
 
       return (
-        (parent.source.value === "vitest" &&
+        ((parent.source.value === "vitest" ||
+          parent.source.value === "vite-plus/test") &&
           (name === "vi" || name === "vitest")) ||
         (parent.source.value === "@jest/globals" && name === "jest")
       );
@@ -2035,7 +2037,7 @@ export const noTestDoubles = defineRule({
       source.ast.body.some(
         (node) =>
           node.type === "ImportDeclaration" &&
-          /^(?:vitest(?:\/|$)|@jest\/globals$|node:test$)/u.test(
+          /^(?:vitest(?:\/|$)|vite-plus\/test$|@jest\/globals$|node:test$)/u.test(
             node.source.value,
           ),
       );

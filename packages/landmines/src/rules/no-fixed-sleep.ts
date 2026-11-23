@@ -154,6 +154,26 @@ function resolvesAfterTimeout(node: ESTree.NewExpression) {
   );
 }
 
+function returned(node: ESTree.Node | null | undefined) {
+  if (
+    node?.type !== "ArrowFunctionExpression" &&
+    node?.type !== "FunctionExpression" &&
+    node?.type !== "FunctionDeclaration"
+  ) {
+    return null;
+  }
+
+  const { body } = node;
+
+  if (body?.type !== "BlockStatement") {
+    return body ?? null;
+  }
+
+  const last = body.body.at(-1);
+
+  return last?.type === "ReturnStatement" ? last.argument : null;
+}
+
 export const noFixedSleep = defineRule({
   meta: {
     type: "problem",
@@ -173,7 +193,7 @@ export const noFixedSleep = defineRule({
     },
     messages: {
       sleep:
-        "Replace this fixed sleep with a signal: await the operation itself or a promise its handler resolves. To move time, use vi.useFakeTimers() and advance it. A sleep guesses how long real work takes and fails under CPU load.",
+        "Replace this fixed sleep with a signal: await the operation itself or a promise its handler resolves. To move time, use fake timers (vi.useFakeTimers() or jest.useFakeTimers()) and advance them. A sleep guesses how long real work takes and fails under CPU load.",
       stale:
         "This file now has {{count}} fixed sleeps; lower its no-fixed-sleep allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0.",
     },
@@ -183,7 +203,17 @@ export const noFixedSleep = defineRule({
     const runNow = new Set(options?.runNow ?? defaultRunNow);
     const timers = new Set<string>();
     const sleeps: ESTree.Node[] = [];
+    const helpers = new Map<string, ESTree.Node>();
+    const helperCalls: [ESTree.Node, string][] = [];
     let fakeTimers = false;
+
+    function recordHelper(name: string, node: ESTree.Node | null | undefined) {
+      const value = returned(node);
+
+      if (value) {
+        helpers.set(name, value);
+      }
+    }
 
     function isSleep(node: ESTree.Node) {
       if (node.type === "NewExpression") {
@@ -222,16 +252,48 @@ export const noFixedSleep = defineRule({
         }
       },
       CallExpression(node) {
-        if (isMember(node.callee, "vi", "useFakeTimers")) {
+        if (
+          isMember(node.callee, "vi", "useFakeTimers") ||
+          isMember(node.callee, "jest", "useFakeTimers")
+        ) {
           fakeTimers = true;
         }
       },
+      FunctionDeclaration(node) {
+        if (node.id) {
+          recordHelper(node.id.name, node);
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id.type === "Identifier") {
+          recordHelper(node.id.name, node.init);
+        }
+      },
       AwaitExpression(node) {
-        if (isSleep(node.argument) && inTestBody(node, runNow)) {
+        if (!inTestBody(node, runNow)) {
+          return;
+        }
+
+        const { argument } = node;
+
+        if (isSleep(argument)) {
           sleeps.push(node);
+        } else if (
+          argument.type === "CallExpression" &&
+          argument.callee.type === "Identifier"
+        ) {
+          helperCalls.push([node, argument.callee.name]);
         }
       },
       "Program:exit"(program) {
+        for (const [node, name] of helperCalls) {
+          const value = helpers.get(name);
+
+          if (value && isSleep(value)) {
+            sleeps.push(node);
+          }
+        }
+
         reportAllowed(context, program, fakeTimers ? [] : sleeps, "sleep");
       },
     };

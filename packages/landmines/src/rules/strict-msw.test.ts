@@ -65,6 +65,9 @@ const lenient = [
   `${server}import { handle } from "./handle";\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledFrame: missing });`,
   `${server}export function start(handle) { setupServer().listen({ onUnhandledFrame: handle }); }`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledFrame: "error", onUnhandledRequest: "bypass" });`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledRequest: "bypass", onUnhandledFrame: "error" });`,
+  `${worker}const network = setupWorker(); await network.start({ onUnhandledRequest: "error", onUnhandledFrame: "warn" });`,
 ];
 
 const strict = [
@@ -85,6 +88,7 @@ const strict = [
   `${server}const network = setupServer(); network.listen({ onUnhandledFrame({ defaults }) { defaults.error(); } });`,
   `${server}function handle(request, print) { print.error(); }\nconst network = setupServer(); network.listen({ onUnhandledRequest: handle });`,
   `${server}const handle = ({ defaults }) => { defaults.error(); };\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledFrame: "error", onUnhandledRequest: "error" });`,
 ];
 
 test.each(lintBatch(lenient, false, "testing", config))(
