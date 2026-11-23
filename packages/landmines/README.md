@@ -80,8 +80,9 @@ Requires Oxlint 1.81 or later and Node 22.18 or later.
 | Rule                         | What it stops                                                                                                                                                                                                                                                              |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `no-test-doubles`            | Replacing dependency behaviour in tests: module mocks, `vi.fn(impl)`, stubbed globals, patched prototypes, hand-written bindings and fake responses. Use the real implementation and MSW for the network. Observation-only spies are allowed.                              |
-| `no-fixed-sleep`             | Awaiting a fixed real-time delay in a test or hook, directly or through a same-file helper. Await the operation or a signal it emits.                                                                                                                                      |
-| `no-unsignaled-poll`         | `expect.poll` and `vi.waitFor` on request recorders and spy state, which race a deadline instead of awaiting an event.                                                                                                                                                     |
+| `no-fixed-sleep`             | Awaiting a fixed real-time delay in a test or hook, directly or through a same-file helper, and Playwright's timed waits (`waitForTimeout`, `networkidle`) anywhere. Await the operation, a signal it emits or a web-first assertion.                                      |
+| `no-unsignaled-poll`         | `expect.poll` and `vi.waitFor` on request recorders and spy state, and loops in test files that await until a clock deadline (`while (Date.now() < deadline)`), which race a deadline instead of awaiting an event.                                                        |
+| `no-shared-signal`           | An `AbortSignal.timeout` stored at module or `describe` scope of a test file, which starts counting at import so fixtures spend its budget, and one `AbortController` shared by a file's tests.                                                                            |
 | `no-flake-masking`           | Test retries and raised timeouts, per test, in Vitest and Playwright config, and through `jest.retryTimes`. A test that passes on rerun is a flake to fix.                                                                                                                 |
 | `no-parameter-branch`        | Branching on a `test.each` parameter inside the test body. Put the expected value in the case table.                                                                                                                                                                       |
 | `no-imported-mutation`       | Assigning to, defining or deleting properties of an imported module's object (`env.X = …`, `Object.assign(env, …)`, `Reflect.deleteProperty(env, …)`) in test, fixture and test-utils files. Pass values through options, bindings or a scoped override such as `withEnv`. |
@@ -107,6 +108,12 @@ replace the default callee names (`act`, `waitFor`, `then`, `catch`, `finally`,
   ]
 }
 ```
+
+`no-unsignaled-poll` and `no-shared-signal` check loops and signals in
+`*.test.*`, `*.spec.*`, `*.e2e.*`, `*.fixture.*` and `*.test-utils.*` files and
+in `test`, `tests`, `__tests__` and `e2e` directories, so production retry
+loops and process-wide shutdown controllers stay allowed. A sleep or clock read
+behind a helper imported from another file is not followed.
 
 `no-cold-start-in-test` recognises restarts of Wrangler's `createTestHarness`.
 Pass `harnessModules` to also cover modules that re-export it:
@@ -226,6 +233,7 @@ harnesses:
 ### Allowlists
 
 `no-fixed-sleep`, `strict-msw`, `no-flake-masking`, `no-unsignaled-poll`,
+`no-shared-signal`,
 `no-conditional-expect`, `no-parameter-branch`, `no-imported-mutation`,
 `no-cold-start-in-test`, `no-cold-import-in-test`,
 `no-styling-class-assertion` and `declared-test-inputs` accept a per-file

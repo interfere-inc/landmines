@@ -28,6 +28,7 @@
     "landmines/no-project-max-workers": "error",
     "landmines/no-scripts-directory": "error",
     "landmines/no-self-container-query": "error",
+    "landmines/no-shared-signal": "error",
     "landmines/no-silent-catch": "error",
     "landmines/no-stale-render-assertion": "error",
     "landmines/no-styling-class-assertion": "error",
