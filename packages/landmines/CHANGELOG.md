@@ -1,5 +1,11 @@
 # @interfere/landmines
 
+## 0.2.1
+
+### Patch Changes
+
+- [#49](https://github.com/interfere-inc/landmines/pull/49) [`2e4767a`](https://github.com/interfere-inc/landmines/commit/2e4767a97a8b74becb488193488401e6dd1564cd) Thanks [@skve](https://github.com/skve)! - `package-scripts` accepts a `names` option to treat more task names, such as `build:js` and `build:types`, as standard.
+
 ## 0.2.0
 
 ### Minor Changes
