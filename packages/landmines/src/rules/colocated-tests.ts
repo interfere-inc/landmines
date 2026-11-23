@@ -10,11 +10,11 @@ export const colocatedTests = defineRule({
     schema: [],
     docs: {
       description:
-        "Keep module tests beside their implementation or in its local tests directory.",
+        "Keep module tests beside their implementation or in its local test/ directory.",
     },
     messages: {
       detached:
-        "This test has an implementation owner in {{owner}}. Move it beside that implementation or into its local tests directory, including any test-specific fixtures and snapshots.",
+        "This test has an implementation owner in {{owner}}. Move it beside that implementation or into its local test/ directory, including any test-specific fixtures and snapshots.",
     },
   },
   create(context) {

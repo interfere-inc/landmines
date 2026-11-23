@@ -1,6 +1,6 @@
 {
   "name": "@interfere/landmines",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Oxlint rules that keep AI-written code honest: real implementations, real signals, no flake masking.",
   "keywords": [
     "agents",
@@ -26,23 +26,11 @@
   ],
   "type": "module",
   "exports": {
-    "./testing": {
-      "types": "./dist/testing.d.mts",
-      "default": "./dist/testing.mjs"
+    ".": {
+      "types": "./dist/plugin.d.mts",
+      "default": "./dist/plugin.mjs"
     },
-    "./style": {
-      "types": "./dist/style.d.mts",
-      "default": "./dist/style.mjs"
-    },
-    "./structure": {
-      "types": "./dist/structure.d.mts",
-      "default": "./dist/structure.mjs"
-    },
-    "./types": {
-      "types": "./dist/types.d.mts",
-      "default": "./dist/types.mjs"
-    },
-    "./configs/recommended.json": "./configs/recommended.json",
+    "./configs/*.json": "./configs/*.json",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -59,11 +47,13 @@
     "@babel/parser": "8.0.4",
     "@babel/types": "8.0.4",
     "@oxlint/plugins": "1.81.0",
+    "jsonc-parser": "3.3.1",
     "oxc-resolver": "11.24.2",
     "zod": "4.6.6"
   },
   "devDependencies": {
     "@types/node": "26.4.1",
+    "eslint": "10.15.0",
     "oxlint": "1.81.0",
     "tsdown": "0.23.0",
     "typescript": "7.0.2",

@@ -1,21 +1,23 @@
 import type { Context, ESTree } from "@oxlint/plugins";
 import { z } from "zod";
 
+export const allowlistProperties = {
+  allow: {
+    type: "object" as const,
+    additionalProperties: { type: "integer" as const, minimum: 1 },
+  },
+};
+
 export const allowlistSchema = [
   {
     type: "object" as const,
-    properties: {
-      allow: {
-        type: "object" as const,
-        additionalProperties: { type: "integer" as const, minimum: 1 },
-      },
-    },
+    properties: allowlistProperties,
     additionalProperties: false,
   },
 ];
 
 const allowlistOptions = z
-  .tuple([z.object({ allow: z.record(z.string(), z.int().min(1)) })])
+  .tuple([z.object({ allow: z.record(z.string(), z.int().min(1)).optional() })])
   .or(z.tuple([]));
 
 function allowance(context: Context) {
@@ -27,11 +29,17 @@ function allowance(context: Context) {
   );
 }
 
+export function allowedCount(context: Context) {
+  return allowance(context)?.[1] ?? 0;
+}
+
 export function reportAllowed(
   context: Context,
   program: ESTree.Program,
   violations: readonly ESTree.Node[],
   messageId: string,
+  data?: (node: ESTree.Node) => Record<string, string> | undefined,
+  messageForNode?: (node: ESTree.Node) => string,
 ) {
   const [path, count] = allowance(context) ?? ["", 0];
 
@@ -50,6 +58,10 @@ export function reportAllowed(
   }
 
   for (const node of violations) {
-    context.report({ node, messageId });
+    context.report({
+      node,
+      messageId: messageForNode?.(node) ?? messageId,
+      data: data?.(node),
+    });
   }
 }

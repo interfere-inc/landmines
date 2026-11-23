@@ -1,0 +1,13 @@
+{
+  "jsPlugins": [
+    {
+      "name": "landmines",
+      "specifier": "@interfere/landmines"
+    }
+  ],
+  "rules": {
+    "landmines/no-explicit-return-types": "warn",
+    "landmines/no-inline-hex-encoding": "warn",
+    "landmines/padding-between-statements": "warn"
+  }
+}

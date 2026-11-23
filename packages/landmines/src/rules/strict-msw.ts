@@ -25,26 +25,62 @@ function variableOf(source: SourceCode, node: ESTree.Node, name: string) {
 }
 
 function mswFactory(source: SourceCode, node: ESTree.Node | null | undefined) {
-  if (node?.type !== "CallExpression" || node.callee.type !== "Identifier") {
+  if (node?.type !== "CallExpression") {
+    return null;
+  }
+
+  const { callee } = node;
+  let identifier = callee.type === "Identifier" ? callee : null;
+
+  if (
+    callee.type === "MemberExpression" &&
+    callee.object.type === "Identifier"
+  ) {
+    identifier = callee.object;
+  }
+
+  if (!identifier) {
     return null;
   }
 
   for (const { node: definition, parent } of variableOf(
     source,
-    node.callee,
-    node.callee.name,
+    identifier,
+    identifier.name,
   )?.defs ?? []) {
     if (
-      definition.type === "ImportSpecifier" &&
-      parent?.type === "ImportDeclaration" &&
-      /^msw(?:\/|$)/u.test(parent.source.value)
+      parent?.type !== "ImportDeclaration" ||
+      !/^msw(?:\/|$)/u.test(parent.source.value)
     ) {
+      continue;
+    }
+
+    if (callee.type === "Identifier" && definition.type === "ImportSpecifier") {
       const name =
         definition.imported.type === "Identifier"
           ? definition.imported.name
           : definition.imported.value;
 
       return starters.has(name) ? name : null;
+    }
+
+    if (
+      callee.type === "MemberExpression" &&
+      definition.type === "ImportNamespaceSpecifier"
+    ) {
+      let name =
+        !callee.computed && callee.property.type === "Identifier"
+          ? callee.property.name
+          : null;
+
+      if (
+        callee.property.type === "Literal" &&
+        typeof callee.property.value === "string"
+      ) {
+        name = callee.property.value;
+      }
+
+      return name !== null && starters.has(name) ? name : null;
     }
   }
 
@@ -81,19 +117,78 @@ function serverFactory(source: SourceCode, node: ESTree.Node) {
   return factories.size === 1 && factory !== undefined ? factory : null;
 }
 
-function strict(node: ESTree.Node | undefined) {
+function keyName(property: ESTree.ObjectProperty) {
+  if (property.computed) {
+    return null;
+  }
+
+  if (property.key.type === "Identifier") {
+    return property.key.name;
+  }
+
+  return property.key.type === "Literal" &&
+    typeof property.key.value === "string"
+    ? property.key.value
+    : null;
+}
+
+const unhandledOptions = new Set(["onUnhandledRequest", "onUnhandledFrame"]);
+
+function inlineHandler(node: ESTree.Node) {
   return (
-    node?.type === "ObjectExpression" &&
-    node.properties.some(
+    node.type === "ArrowFunctionExpression" ||
+    node.type === "FunctionExpression"
+  );
+}
+
+function namedHandler(source: SourceCode, node: ESTree.Node) {
+  if (node.type !== "Identifier") {
+    return false;
+  }
+
+  const variable = variableOf(source, node, node.name);
+
+  return (
+    variable !== null &&
+    variable.defs.length > 0 &&
+    variable.defs.every(
+      ({ type }) => type === "FunctionName" || type === "Variable",
+    ) &&
+    assignedValues(variable).every((value) => inlineHandler(value)) &&
+    variable.defs.some(
+      ({ type, node: definition }) =>
+        type === "FunctionName" ||
+        (definition.type === "VariableDeclarator" &&
+          definition.init !== null &&
+          inlineHandler(definition.init)),
+    )
+  );
+}
+
+function strictValue(source: SourceCode, node: ESTree.Node) {
+  return (
+    (node.type === "Literal" && node.value === "error") ||
+    inlineHandler(node) ||
+    namedHandler(source, node)
+  );
+}
+
+function strict(source: SourceCode, node: ESTree.Node | undefined) {
+  if (node?.type !== "ObjectExpression") {
+    return false;
+  }
+
+  const unhandled = node.properties.filter(
+    (property) =>
+      property.type === "Property" &&
+      unhandledOptions.has(keyName(property) ?? ""),
+  );
+
+  return (
+    unhandled.length > 0 &&
+    unhandled.every(
       (property) =>
-        property.type === "Property" &&
-        !property.computed &&
-        property.key.type === "Identifier" &&
-        property.key.name === "onUnhandledRequest" &&
-        ((property.value.type === "Literal" &&
-          property.value.value === "error") ||
-          property.value.type === "ArrowFunctionExpression" ||
-          property.value.type === "FunctionExpression"),
+        property.type === "Property" && strictValue(source, property.value),
     )
   );
 }
@@ -108,7 +203,7 @@ export const strictMsw = defineRule({
     },
     messages: {
       lenient:
-        'Start MSW with { onUnhandledRequest: "error" }. Add a handler for every request the test makes, with passthrough() for local origins the test owns.',
+        'Start MSW with { onUnhandledFrame: "error" } (msw 3) or { onUnhandledRequest: "error" } (msw 2). Add a handler for every request the test makes, with passthrough() for local origins the test owns.',
       stale:
         "This file now has {{count}} lenient MSW starts; lower its strict-msw allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0.",
     },
@@ -135,7 +230,7 @@ export const strictMsw = defineRule({
         if (
           factory !== null &&
           starters.get(factory) === callee.property.name &&
-          !strict(node.arguments[0])
+          !strict(source, node.arguments[0])
         ) {
           lenientStarts.push(node);
         }
