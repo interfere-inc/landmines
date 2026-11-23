@@ -22,8 +22,16 @@ function keyName(property: ESTree.Node) {
 function rootIdentifier(initial: ESTree.Node) {
   let node = initial;
 
-  while (node.type === "MemberExpression" || node.type === "CallExpression") {
-    node = node.type === "MemberExpression" ? node.object : node.callee;
+  while (
+    node.type === "MemberExpression" ||
+    node.type === "CallExpression" ||
+    node.type === "TaggedTemplateExpression"
+  ) {
+    if (node.type === "TaggedTemplateExpression") {
+      node = node.tag;
+    } else {
+      node = node.type === "MemberExpression" ? node.object : node.callee;
+    }
   }
 
   return node.type === "Identifier" ? node : null;
