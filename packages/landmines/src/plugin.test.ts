@@ -2,16 +2,16 @@ import { Linter } from "eslint";
 import type { ESLint } from "eslint";
 import { expect, test } from "vitest";
 
-import testing from "./testing";
+import landmines from "./plugin";
 
 const linter = new Linter();
 
 function config(rule: string, allow?: Record<string, number>) {
   return {
     files: ["**/*.{js,ts,mts}"],
-    plugins: { "landmines-testing": testing as unknown as ESLint.Plugin },
+    plugins: { landmines: landmines as unknown as ESLint.Plugin },
     rules: {
-      [`landmines-testing/${rule}`]: allow ? ["error", { allow }] : "error",
+      [`landmines/${rule}`]: allow ? ["error", { allow }] : "error",
     },
   } satisfies Linter.Config;
 }
@@ -42,7 +42,7 @@ test.each([
     ),
   ).toStrictEqual([
     {
-      ruleId: "landmines-testing/no-project-max-workers",
+      ruleId: "landmines/no-project-max-workers",
       messageId: "workers",
     },
   ]);
@@ -77,7 +77,7 @@ test("reports elapsed upper bounds through the registered plugin", () => {
       "no-elapsed-time-bound",
     ),
   ).toStrictEqual([
-    { ruleId: "landmines-testing/no-elapsed-time-bound", messageId: "elapsed" },
+    { ruleId: "landmines/no-elapsed-time-bound", messageId: "elapsed" },
   ]);
 });
 
@@ -105,7 +105,7 @@ test.each([
         "src/feature.browser.test.ts",
       ),
     ).toStrictEqual([
-      { ruleId: "landmines-testing/no-clipboard-read-text", messageId: "read" },
+      { ruleId: "landmines/no-clipboard-read-text", messageId: "read" },
     ]);
   },
 );

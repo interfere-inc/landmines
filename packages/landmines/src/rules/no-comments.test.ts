@@ -17,14 +17,12 @@ function createConfig(options?: { publicApi?: string[]; allow?: string[] }) {
       categories: { correctness: "off" },
       jsPlugins: [
         {
-          name: "landmines-style",
-          specifier: fileURLToPath(
-            new URL("../plugins/style.ts", import.meta.url),
-          ),
+          name: "landmines",
+          specifier: fileURLToPath(new URL("../plugin.ts", import.meta.url)),
         },
       ],
       rules: {
-        "landmines-style/no-comments": options ? ["error", options] : "error",
+        "landmines/no-comments": options ? ["error", options] : "error",
       },
     }),
   );

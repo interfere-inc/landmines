@@ -512,7 +512,7 @@ test.each(["../../../../.oxlintrc.jsonc"])(
     );
 
     expect(result.status).toBe(1);
-    expect(result.output).toContain("landmines-testing(no-test-doubles)");
+    expect(result.output).toContain("landmines(no-test-doubles)");
   },
 );
 

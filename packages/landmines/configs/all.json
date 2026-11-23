@@ -1,0 +1,43 @@
+{
+  "jsPlugins": [
+    {
+      "name": "landmines",
+      "specifier": "@interfere/landmines"
+    }
+  ],
+  "rules": {
+    "landmines/colocated-tests": "error",
+    "landmines/declared-test-inputs": "warn",
+    "landmines/max-exports-per-module": "warn",
+    "landmines/max-file-lines": "warn",
+    "landmines/max-files-per-directory": "warn",
+    "landmines/no-clipboard-read-text": "error",
+    "landmines/no-cold-import-in-test": "error",
+    "landmines/no-cold-start-in-test": "error",
+    "landmines/no-comments": "error",
+    "landmines/no-conditional-expect": "error",
+    "landmines/no-elapsed-time-bound": "error",
+    "landmines/no-explicit-return-types": "warn",
+    "landmines/no-fixed-sleep": "error",
+    "landmines/no-flake-masking": "error",
+    "landmines/no-github-scripts": "error",
+    "landmines/no-imported-mutation": "error",
+    "landmines/no-inline-hex-encoding": "warn",
+    "landmines/no-parameter-branch": "error",
+    "landmines/no-prefix-cluster": "warn",
+    "landmines/no-project-max-workers": "error",
+    "landmines/no-scripts-directory": "error",
+    "landmines/no-self-container-query": "error",
+    "landmines/no-silent-catch": "error",
+    "landmines/no-stale-render-assertion": "error",
+    "landmines/no-styling-class-assertion": "error",
+    "landmines/no-test-doubles": "error",
+    "landmines/no-unsignaled-poll": "error",
+    "landmines/package-exports": "error",
+    "landmines/package-scripts": "warn",
+    "landmines/padding-between-statements": "warn",
+    "landmines/strict-msw": "error",
+    "landmines/test-dir-only-cross-functional": "error",
+    "landmines/test-file-names": "error"
+  }
+}

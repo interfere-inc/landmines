@@ -26,23 +26,11 @@
   ],
   "type": "module",
   "exports": {
-    "./testing": {
-      "types": "./dist/testing.d.mts",
-      "default": "./dist/testing.mjs"
+    ".": {
+      "types": "./dist/plugin.d.mts",
+      "default": "./dist/plugin.mjs"
     },
-    "./style": {
-      "types": "./dist/style.d.mts",
-      "default": "./dist/style.mjs"
-    },
-    "./structure": {
-      "types": "./dist/structure.d.mts",
-      "default": "./dist/structure.mjs"
-    },
-    "./types": {
-      "types": "./dist/types.d.mts",
-      "default": "./dist/types.mjs"
-    },
-    "./configs/recommended.json": "./configs/recommended.json",
+    "./configs/*.json": "./configs/*.json",
     "./package.json": "./package.json"
   },
   "publishConfig": {

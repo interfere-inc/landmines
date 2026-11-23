@@ -74,7 +74,7 @@ test.each(
   lintBatch(sleeps, false, "testing", configuration(), "fixture.test.ts"),
 )("rejects a fixed sleep in a test or hook body: %s", (_, result) => {
   expect(result.status).toBe(1);
-  expect(result.output).toContain("landmines-testing(no-fixed-sleep)");
+  expect(result.output).toContain("landmines(no-fixed-sleep)");
   expect(result.output).toContain("Replace this fixed sleep with a signal");
 });
 

@@ -10,7 +10,7 @@ import { Linter } from "eslint";
 import type { ESLint } from "eslint";
 import { expect } from "vitest";
 
-import layout from "../plugins/structure";
+import layout from "../plugin";
 
 const lintedFile = /\.[cm]?[jt]sx?$/u;
 
@@ -35,9 +35,9 @@ export function lintLayout(
 
   const config = {
     files: ["**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}"],
-    plugins: { "landmines-structure": layout as unknown as ESLint.Plugin },
+    plugins: { landmines: layout as unknown as ESLint.Plugin },
     rules: {
-      [`landmines-structure/${rule}`]: allow
+      [`landmines/${rule}`]: allow
         ? [
             "error",
             {

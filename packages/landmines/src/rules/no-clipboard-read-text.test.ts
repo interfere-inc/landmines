@@ -38,7 +38,7 @@ test.each(
 )("reports a shared clipboard read in a browser test: %s", (_, result) => {
   expect(result.status).toBe(1);
 
-  expect(result.output).toContain("landmines-testing(no-clipboard-read-text)");
+  expect(result.output).toContain("landmines(no-clipboard-read-text)");
 
   expect(result.output).toContain("vi.spyOn(navigator.clipboard, 'writeText')");
 });

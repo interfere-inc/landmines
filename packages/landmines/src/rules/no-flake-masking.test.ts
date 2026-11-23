@@ -20,16 +20,12 @@ function createConfig(
       categories: { correctness: "off" },
       jsPlugins: [
         {
-          name: "landmines-testing",
-          specifier: fileURLToPath(
-            new URL("../plugins/testing.ts", import.meta.url),
-          ),
+          name: "landmines",
+          specifier: fileURLToPath(new URL("../plugin.ts", import.meta.url)),
         },
       ],
       rules: {
-        "landmines-testing/no-flake-masking": options
-          ? ["error", options]
-          : "error",
+        "landmines/no-flake-masking": options ? ["error", options] : "error",
       },
     }),
   );
