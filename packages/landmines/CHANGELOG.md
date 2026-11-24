@@ -1,5 +1,21 @@
 # @interfere/landmines
 
+## 0.3.1
+
+### Patch Changes
+
+- [#27](https://github.com/interfere-inc/landmines/pull/27) [`0763986`](https://github.com/interfere-inc/landmines/commit/07639861c438becbec97d537f1fda0ce117721b2) Thanks [@Afloat16](https://github.com/Afloat16)! - Report unsignaled recorder and spy polling through negated `expect.poll` matcher chains.
+
+- [#31](https://github.com/interfere-inc/landmines/pull/31) [`2f61c6c`](https://github.com/interfere-inc/landmines/commit/2f61c6ccf7c0d4fa5d74dee82c0a4589c3780ed2) Thanks [@Afloat16](https://github.com/Afloat16)! - Check MSW namespace imports in strict-msw so setupServer and setupWorker cannot silently bypass unhandled-request enforcement.
+
+- [#34](https://github.com/interfere-inc/landmines/pull/34) [`b66e626`](https://github.com/interfere-inc/landmines/commit/b66e626ee7a0625e10640bc5366198c804097c8f) Thanks [@Afloat16](https://github.com/Afloat16)! - Preserve public API TSDoc on local interfaces and type aliases reached through interface inheritance or class implementation clauses. Continue resolving lexical bindings and rejecting documentation on internal contracts.
+
+- [#24](https://github.com/interfere-inc/landmines/pull/24) [`5ef684a`](https://github.com/interfere-inc/landmines/commit/5ef684a6d6d8bfc674b86af39762d8968e0eda50) Thanks [@Afloat16](https://github.com/Afloat16)! - Recognize namespace, default, and scheduler imports from timers/promises in no-fixed-sleep, and avoid treating shadowed timer bindings as real sleeps.
+
+- [#25](https://github.com/interfere-inc/landmines/pull/25) [`f028349`](https://github.com/interfere-inc/landmines/commit/f02834932f842f9e14f0d0ba3608782fbe89cfcf) Thanks [@Afloat16](https://github.com/Afloat16)! - Detect retries and timeout overrides in test.each tagged-template tables as well as array tables.
+
+- [#8](https://github.com/interfere-inc/landmines/pull/8) [`a577a08`](https://github.com/interfere-inc/landmines/commit/a577a08771dc4ccbfa488673055912806725c280) Thanks [@wra-sol](https://github.com/wra-sol)! - Cover `vi.waitUntil` in `no-unsignaled-poll`. It polls a condition the same way `vi.waitFor` polls an assertion, so a condition that reads request-recorder or spy state now reports instead of racing its timeout.
+
 ## 0.3.0
 
 ### Minor Changes
