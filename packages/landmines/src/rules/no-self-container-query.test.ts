@@ -28,6 +28,9 @@ const selfQueries = [
   `const frame = <div className={\`@container \${gap} @3xl:flex-row\`} />;`,
   'const frame = <Shell contentClassName="@container @3xl:p-8" />;',
   'const frame = <div className={"@container @xl:[&>*]:p-4"} />;',
+  'const frame = <div className={flag ? "@container @md:block" : "flex"} />;',
+  'const frame = <div className={cn("@container", flag ? "@md:block" : "flex")} />;',
+  'const frame = <div className={cn(flag ? "@container" : "flex", other ? "@md:block" : "grid")} />;',
 ];
 
 const ancestorQueries = [
@@ -39,6 +42,9 @@ const ancestorQueries = [
   'const frame = <div className="@container" data-state="@3xl:open" />;',
   'const frame = <div className="@container">{"@3xl:flex"}</div>;',
   'const classes = "@container @3xl:flex-row";',
+  'const frame = <div className={flag ? "@container" : "@md:block"} />;',
+  'const frame = <div className={cn("flex", flag ? "@container flex-col" : "@3xl:flex-row")} />;',
+  `const frame = <div className={\`flex \${nested ? "@sm:flex" : "@container"}\`} />;`,
 ];
 
 test.each(lintBatch(selfQueries, false, "style", configuration, "fixture.tsx"))(
