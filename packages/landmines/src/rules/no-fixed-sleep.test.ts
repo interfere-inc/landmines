@@ -33,6 +33,10 @@ const sleeps = [
   'import { "setTimeout" as sleep } from "node:timers/promises"; test("x", async () => { await sleep(20); });',
   "beforeEach(async () => { await scheduler.wait(10); });",
   "test('x', async () => { await Bun.sleep(100); });",
+  "test('x', () => { Bun.sleepSync(100); });",
+  "beforeEach(() => { Bun.sleepSync(20); });",
+  "test('x', () => { act(() => { Bun.sleepSync(10); }); });",
+  "test('x', () => { vi.useFakeTimers(); Bun.sleepSync(100); });",
   "test.each([1])('x %s', async () => { await scheduler.wait(1); });",
   "test.concurrent('x', async () => { await scheduler.wait(1); });",
   "it.skipIf(ci)('x', async function () { await scheduler.wait(1); });",
@@ -80,6 +84,9 @@ const signals = [
   'import { jest, test } from "bun:test"; test("x", async () => { jest.useFakeTimers(); await new Promise((resolve) => setTimeout(resolve, 200)); });',
   "const load = (id) => fetch(id); test('x', async () => { await load('a'); });",
   "const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)); export async function retry() { await sleep(5); }",
+  "export function waitSync() { Bun.sleepSync(10); }",
+  "test('x', () => { serve(() => { Bun.sleepSync(10); return new Response(); }); });",
+  "export const player = { play: async () => { await Bun.sleep(10); } };",
 ];
 
 test.each(
@@ -207,4 +214,44 @@ test("counts timed waits toward the file's allowlist entry", () => {
       "fixture.e2e.ts",
     ).status,
   ).toBe(0);
+});
+
+const storySleeps = [
+  "export const Default = { play: async () => { await new Promise((resolve) => setTimeout(resolve, 100)); } };",
+  "export const Default = { async play() { await Bun.sleep(50); } };",
+  "export const Default = { play: () => { Bun.sleepSync(50); } };",
+  "export const Default = meta.story({ play: async ({ step }) => { await step('open', async () => { await scheduler.wait(10); }); } });",
+  "const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)); export const Default = { play: async () => { await sleep(50); } };",
+];
+
+const storySignals = [
+  "export const Default = { play: async () => { await expect(canvas.getByText('Ready')).toBeVisible(); } };",
+  "export const Default = { render: () => { Bun.sleepSync(10); return null; } };",
+  "export const Default = { play: async () => { serve(async () => { await scheduler.wait(10); return new Response(); }); } };",
+];
+
+test.each(
+  lintBatch(
+    storySleeps,
+    false,
+    "testing",
+    configuration(),
+    "Button.stories.tsx",
+  ),
+)("rejects a fixed sleep in a Storybook play function: %s", (_, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("landmines(no-fixed-sleep)");
+  expect(result.output).toContain("Replace this fixed sleep with a signal");
+});
+
+test.each(
+  lintBatch(
+    storySignals,
+    false,
+    "testing",
+    configuration(),
+    "Button.stories.tsx",
+  ),
+)("allows non-play code and signals in stories: %s", (_, result) => {
+  expect(result.status).toBe(0);
 });
