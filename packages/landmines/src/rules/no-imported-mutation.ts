@@ -115,6 +115,11 @@ export const noImportedMutation = defineRule({
           record(node, node.argument);
         }
       },
+      UpdateExpression(node) {
+        if (node.argument.type === "MemberExpression") {
+          record(node, node.argument);
+        }
+      },
       "Program:exit"(program) {
         reportAllowed(context, program, violations, "mutation");
       },

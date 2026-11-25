@@ -39,6 +39,9 @@ test.each([
   'import * as request from "./request"; request.deadline.milliseconds = 50;',
   'import config from "motion"; config.useManualTiming = true;',
   'import { counters } from "./state"; counters.total += 1;',
+  'import { counters } from "./state"; counters.total++;',
+  'import { counters } from "./state"; --counters.total;',
+  'import * as state from "./state"; state.counters.total--;',
 ])("reports an assignment to an imported binding's property: %s", (code) => {
   expect(messages(code)).toStrictEqual(["mutation"]);
 });
