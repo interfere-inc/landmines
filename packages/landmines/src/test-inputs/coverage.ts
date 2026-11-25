@@ -86,12 +86,15 @@ function sources(directory: string) {
 
   const result = globSync("**/*.{ts,tsx,mts,cts,js,mjs}", {
     cwd: directory,
-    exclude: (entry) => entry === "node_modules",
-  }).map((entry) => {
-    const path = join(directory, entry);
+    withFileTypes: true,
+    exclude: (entry) => entry.name === "node_modules",
+  })
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
+      const path = join(entry.parentPath, entry.name);
 
-    return { path, text: readFileSync(path, "utf8") };
-  });
+      return { path, text: readFileSync(path, "utf8") };
+    });
 
   packageSources.set(directory, result);
 
