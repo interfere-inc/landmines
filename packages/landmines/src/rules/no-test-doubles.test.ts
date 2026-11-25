@@ -2,9 +2,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "vitest";
+import { afterAll, expect, test } from "vitest";
 
 import { lint, lintBatch, ruleConfiguration } from "./rule.test-utils";
+
+const allowDirectory = mkdtempSync(join(tmpdir(), "no-test-doubles-allow-"));
+
+afterAll(() => rmSync(allowDirectory, { recursive: true, force: true }));
 
 test("reports every double when vi is imported from vite-plus/test", () => {
   const result = lint(
@@ -1158,4 +1162,147 @@ test.each([
 
   expect(result.status).toBe(1);
   expect(result.output).toContain("no-test-doubles");
+});
+
+const allowPath = "src/legacy/api.test.ts";
+
+const replacementMessage = "Do not replace test dependency behavior";
+
+const staleMessage = `lower its no-test-doubles allowlist entry for ${allowPath}`;
+
+const twoDoubles = [
+  'vi.mock("client");',
+  'vi.stubGlobal("fetch", fetcher);',
+].join("\n");
+
+const allowConfiguration = (count: number) =>
+  ruleConfiguration(allowDirectory, "testing/no-test-doubles", {
+    allow: { [allowPath]: count },
+  });
+
+const occurrences = (output: string, text: string) =>
+  output.split(text).length - 1;
+
+test("accepts exactly the allowed number of test doubles", () => {
+  const result = lint(
+    twoDoubles,
+    false,
+    "testing",
+    allowConfiguration(2),
+    allowPath,
+  );
+
+  expect(result.status).toBe(0);
+  expect(result.output).not.toContain(staleMessage);
+});
+
+test("reports every double beyond the allowed number", () => {
+  const result = lint(
+    `${twoDoubles}\nvi.stubGlobal("localStorage", storage);`,
+    false,
+    "testing",
+    allowConfiguration(2),
+    allowPath,
+  );
+
+  expect(result.status).toBe(1);
+  expect(occurrences(result.output, replacementMessage)).toBe(3);
+});
+
+test("asks to lower an allowance that is larger than the count", () => {
+  const result = lint(
+    'vi.mock("client");',
+    false,
+    "testing",
+    allowConfiguration(2),
+    allowPath,
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.output).toContain(staleMessage);
+  expect(result.output).toContain("to 1, or remove the entry at 0");
+  expect(result.output).not.toContain(replacementMessage);
+});
+
+test("asks to remove an allowance for a file without doubles", () => {
+  const result = lint(
+    "expect(1).toBe(1);",
+    false,
+    "testing",
+    allowConfiguration(1),
+    allowPath,
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.output).toContain(staleMessage);
+  expect(result.output).toContain("to 0, or remove the entry at 0");
+  expect(result.output).not.toContain(replacementMessage);
+});
+
+test("still rejects test doubles in files outside the allowlist", () => {
+  const result = lint(
+    twoDoubles,
+    false,
+    "testing",
+    allowConfiguration(2),
+    "src/other/api.test.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(occurrences(result.output, replacementMessage)).toBe(2);
+});
+
+const bindingsApp =
+  'import { createApp } from "@acme/http"; const app = createApp()({service:"gateway"}); app.request("/", {}, {QUEUE: {send: async () => {}}});';
+
+test("combines the allowlist with configured app factories", () => {
+  const configuration = ruleConfiguration(
+    allowDirectory,
+    "testing/no-test-doubles",
+    {
+      appFactories: [{ name: "createApp", from: "@acme/http" }],
+      allow: { [allowPath]: 1 },
+    },
+  );
+
+  expect(
+    lint(bindingsApp, false, "testing", configuration, allowPath).status,
+  ).toBe(0);
+
+  expect(
+    lint(bindingsApp, false, "testing", configuration, "src/other/api.test.ts")
+      .status,
+  ).toBe(1);
+});
+
+test("counts a saved and restored method replacement toward the allowance", () => {
+  const code =
+    "const original = router.navigate; router.navigate = () => false; router.navigate = original;";
+
+  expect(
+    lint(code, false, "testing", allowConfiguration(1), allowPath).status,
+  ).toBe(0);
+
+  const result = lint(code, false, "testing", allowConfiguration(2), allowPath);
+
+  expect(result.status).toBe(1);
+  expect(result.output).toContain(staleMessage);
+  expect(result.output).toContain("to 1, or remove the entry at 0");
+});
+
+test("counts doubles found by different handlers once each", () => {
+  const code = [
+    'vi.stubGlobal("fetch", fetcher);',
+    "globalThis.fetch = async () => new Response();",
+    "delete globalThis.localStorage;",
+    'import { env } from "cloudflare:workers"; use({ ...env, TOKEN: { get: async () => "key" } });',
+  ].join("\n");
+
+  expect(
+    lint(code, false, "testing", allowConfiguration(4), allowPath).status,
+  ).toBe(0);
+
+  const result = lint(code, false, "testing", allowConfiguration(3), allowPath);
+
+  expect(occurrences(result.output, replacementMessage)).toBe(4);
 });

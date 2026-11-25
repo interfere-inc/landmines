@@ -2,6 +2,8 @@ import { defineRule } from "@oxlint/plugins";
 import type { ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
 import { z } from "zod";
 
+import { allowlistProperties, reportAllowed } from "../lib/allowlist.ts";
+
 const appFactory = z.object({
   name: z.string().min(1),
   from: z.string().min(1),
@@ -2000,6 +2002,7 @@ export const noTestDoubles = defineRule({
       {
         type: "object",
         properties: {
+          ...allowlistProperties,
           appFactories: {
             type: "array",
             items: {
@@ -2023,6 +2026,8 @@ export const noTestDoubles = defineRule({
     messages: {
       replacement:
         "Do not replace test dependency behavior. Use the real implementation and MSW for network responses; spies must only observe.",
+      stale:
+        "This file now has {{count}} test doubles; lower its no-test-doubles allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0.",
     },
   },
   create(context) {
@@ -2047,6 +2052,7 @@ export const noTestDoubles = defineRule({
         context.filename.replaceAll("\\", "/"),
       );
 
+    const violations: ESTree.Node[] = [];
     const reportedBindings = new Set<ESTree.Node>();
 
     const savedMembers: ESTree.VariableDeclarator[] = [];
@@ -2074,11 +2080,11 @@ export const noTestDoubles = defineRule({
           ) {
             reportedBindings.add(implementation);
 
-            context.report({ node: node.init, messageId: "replacement" });
+            violations.push(node.init);
           }
         }
       },
-      "Program:exit"() {
+      "Program:exit"(program) {
         for (const assignment of assignments) {
           const replacement = resolvedConstant(source, assignment.right);
 
@@ -2131,9 +2137,11 @@ export const noTestDoubles = defineRule({
           });
 
           if (saved) {
-            context.report({ node: assignment, messageId: "replacement" });
+            violations.push(assignment);
           }
         }
+
+        reportAllowed(context, program, violations, "replacement");
       },
       NewExpression(node) {
         if (!testCode || !knockConstructor(source, node.callee)) {
@@ -2159,7 +2167,7 @@ export const noTestDoubles = defineRule({
             if (!reportedBindings.has(implementation)) {
               reportedBindings.add(implementation);
 
-              context.report({ node: transport, messageId: "replacement" });
+              violations.push(transport);
             }
 
             break;
@@ -2190,7 +2198,7 @@ export const noTestDoubles = defineRule({
         ) {
           reportedBindings.add(node);
 
-          context.report({ node, messageId: "replacement" });
+          violations.push(node);
         }
       },
       Property(node) {
@@ -2207,7 +2215,7 @@ export const noTestDoubles = defineRule({
           (key === "outboundService" && rawResponse(source, node.value)) ||
           (key === "serviceBindings" && rawServiceBindings(source, node.value))
         ) {
-          context.report({ node, messageId: "replacement" });
+          violations.push(node);
         }
       },
       CallExpression(node) {
@@ -2224,7 +2232,7 @@ export const noTestDoubles = defineRule({
             if (!reportedBindings.has(binding)) {
               reportedBindings.add(binding);
 
-              context.report({ node: binding, messageId: "replacement" });
+              violations.push(binding);
             }
           }
         }
@@ -2237,13 +2245,13 @@ export const noTestDoubles = defineRule({
           args[0] &&
           staticRouteResponse(source, args[0])
         ) {
-          context.report({ node, messageId: "replacement" });
+          violations.push(node);
         }
 
         const replacement = replacementMethod(source, callee);
 
         if (tauriMockImport(source, callee)) {
-          context.report({ node, messageId: "replacement" });
+          violations.push(node);
         }
 
         if (
@@ -2265,7 +2273,7 @@ export const noTestDoubles = defineRule({
                 unshadowed(source, args[0])
               )))
         ) {
-          context.report({ node, messageId: "replacement" });
+          violations.push(node);
         }
 
         const mutation = nativePropertyPath(source, callee);
@@ -2304,7 +2312,7 @@ export const noTestDoubles = defineRule({
           if (
             candidates.some((value) => value && containsFunction(source, value))
           ) {
-            context.report({ node, messageId: "replacement" });
+            violations.push(node);
           }
         }
 
@@ -2349,7 +2357,7 @@ export const noTestDoubles = defineRule({
                   ),
                 ))
           ) {
-            context.report({ node, messageId: "replacement" });
+            violations.push(node);
           }
         }
       },
@@ -2362,7 +2370,7 @@ export const noTestDoubles = defineRule({
             String(propertyName(source, node.argument)),
           )
         ) {
-          context.report({ node, messageId: "replacement" });
+          violations.push(node);
         }
       },
       AssignmentExpression(node) {
@@ -2380,7 +2388,7 @@ export const noTestDoubles = defineRule({
           workerBinding(source, target) &&
           containsFunction(source, node.right)
         ) {
-          context.report({ node, messageId: "replacement" });
+          violations.push(node);
         }
 
         if (
@@ -2392,7 +2400,7 @@ export const noTestDoubles = defineRule({
               String(propertyName(source, target)),
             ))
         ) {
-          context.report({ node, messageId: "replacement" });
+          violations.push(node);
         }
       },
     };
