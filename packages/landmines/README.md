@@ -141,13 +141,13 @@ or `new OpenAPIHono()`. Pass `appFactories` to name your own app factories:
 
 ### Pedantic
 
-| Rule                      | What it stops                                                                                                                                                |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `max-file-lines`          | Source files over 500 lines (`max` to change), excluding tests and generated files.                                                                          |
-| `max-exports-per-module`  | Modules exporting more than 6 names (`max` to change).                                                                                                       |
-| `max-files-per-directory` | More than 20 source files directly in one directory (`max` to change).                                                                                       |
-| `no-prefix-cluster`       | Sibling modules sharing a name prefix (`user-create.ts`, `user-delete.ts`, `user-list.ts`) instead of a folder.                                              |
-| `declared-test-inputs`    | A package test reading files outside its package without declaring them as Turbo `test` inputs, so cached runs and `--changed` skip it. For Turbo monorepos. |
+| Rule                      | What it stops                                                                                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max-file-lines`          | Source files over 500 lines (`max` to change), excluding tests and generated files.                                                                            |
+| `max-exports-per-module`  | Modules exporting more than 6 names (`max` to change). A Cloudflare Worker's wrangler `main` skips the classes and entrypoints its JSON or JSONC config binds. |
+| `max-files-per-directory` | More than 20 source files directly in one directory (`max` to change).                                                                                         |
+| `no-prefix-cluster`       | Sibling modules sharing a name prefix (`user-create.ts`, `user-delete.ts`, `user-list.ts`) instead of a folder.                                                |
+| `declared-test-inputs`    | A package test reading files outside its package without declaring them as Turbo `test` inputs, so cached runs and `--changed` skip it. For Turbo monorepos.   |
 
 The rules that count files, lines or names accept an `allow` map from a path
 (relative to the working directory) to its current count. An entry fails when

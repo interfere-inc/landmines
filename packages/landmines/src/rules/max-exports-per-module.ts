@@ -8,15 +8,34 @@ import {
   sizePolicy,
   sizeSchema,
 } from "../lib/size-policy.ts";
+import { workerBoundExports } from "../lib/worker-main.ts";
 
-function declarationNames(declaration: ESTree.ExportNamedDeclaration) {
-  const { declaration: inner } = declaration;
+function exportedName(node: ESTree.ModuleExportName) {
+  return node.type === "Identifier" ? node.name : node.value;
+}
 
-  if (inner?.type === "VariableDeclaration") {
-    return inner.declarations.length;
+function declarationNames(node: ESTree.ExportNamedDeclaration) {
+  const { declaration } = node;
+
+  if (declaration?.type === "VariableDeclaration") {
+    return declaration.declarations.map(({ id }) =>
+      id.type === "Identifier" ? id.name : undefined,
+    );
   }
 
-  return inner ? 1 : declaration.specifiers.length;
+  if (declaration?.type === "ClassDeclaration") {
+    return [declaration.id?.name];
+  }
+
+  if (declaration) {
+    return [undefined];
+  }
+
+  return node.specifiers.map(({ exported, exportKind }) =>
+    exportKind === "type" || node.exportKind === "type"
+      ? undefined
+      : exportedName(exported),
+  );
 }
 
 export const maxExportsPerModule = defineRule({
@@ -25,7 +44,7 @@ export const maxExportsPerModule = defineRule({
     schema: sizeSchema,
     docs: {
       description:
-        "Limit the number of names a module exports (tests and generated files excluded).",
+        "Limit the number of names a module exports (tests and generated files excluded). A Cloudflare Worker's wrangler main does not count the classes and entrypoints its wrangler config binds.",
     },
     messages: {
       many: "This module exports {{count}} names (limit {{max}}). Split it by responsibility.",
@@ -36,17 +55,17 @@ export const maxExportsPerModule = defineRule({
     },
   },
   create(context) {
-    let count = 0;
+    const names: (string | undefined)[] = [];
 
     return {
       ExportNamedDeclaration(node) {
-        count += declarationNames(node);
+        names.push(...declarationNames(node));
       },
       ExportDefaultDeclaration() {
-        count += 1;
+        names.push(undefined);
       },
       ExportAllDeclaration() {
-        count += 1;
+        names.push(undefined);
       },
       "Program:exit"(program) {
         const filename = context.physicalFilename;
@@ -60,6 +79,15 @@ export const maxExportsPerModule = defineRule({
         }
 
         const policy = sizePolicy(context, 6, "file");
+
+        const bound =
+          names.length > policy.max || policy.allowed !== undefined
+            ? workerBoundExports(filename)
+            : new Set<string>();
+
+        const count = names.filter(
+          (name) => name === undefined || !bound.has(name),
+        ).length;
 
         const data = {
           count: String(count),
