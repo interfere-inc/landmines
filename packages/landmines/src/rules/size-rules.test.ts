@@ -228,3 +228,148 @@ test("max-exports-per-module allowlist is a ceiling", () => {
   expect(messages({ "many.ts": 12 })).toStrictEqual([]);
   expect(messages({ "many.ts": 8 })[0]).toContain("now exports 10 names");
 });
+
+const boundClasses = Array.from({ length: 9 }, (_, index) => `Lantern${index}`);
+
+const workerSource = (helpers: number) =>
+  [
+    ...boundClasses.map((name) => `export class ${name} extends Object {}`),
+    ...Array.from(
+      { length: helpers },
+      (_, index) => `export const helper${index} = ${index};`,
+    ),
+    "export default { fetch: () => new Response() };",
+  ].join("\n");
+
+const wrangler = (main: string, nested = false) => {
+  const bindings = {
+    durable_objects: {
+      bindings: boundClasses
+        .slice(0, 3)
+        .map((name) => ({ name: name.toUpperCase(), class_name: name })),
+    },
+    workflows: [{ name: "flow", binding: "FLOW", class_name: boundClasses[3] }],
+    migrations: [
+      {
+        tag: "v1",
+        new_classes: [boundClasses[4]],
+        new_sqlite_classes: [boundClasses[5]],
+        renamed_classes: [{ from: "OldLantern", to: boundClasses[6] }],
+      },
+    ],
+    services: [
+      { binding: "SELF", service: "beacon", entrypoint: boundClasses[7] },
+      { binding: "PEER", service: "beacon", entrypoint: boundClasses[8] },
+    ],
+  };
+
+  return [
+    "// Synthetic Worker configuration",
+    JSON.stringify(
+      nested
+        ? { name: "beacon", main, env: { staging: bindings } }
+        : { name: "beacon", main, ...bindings },
+      undefined,
+      2,
+    ).replace(/\n\}$/u, ",\n}"),
+    "",
+  ].join("\n");
+};
+
+test("max-exports-per-module does not count the classes a Worker main's wrangler config binds", () => {
+  expect(
+    run("max-exports-per-module", {
+      "package.json": "{}\n",
+      "wrangler.jsonc": wrangler("./src/index.ts"),
+      "src/index.ts": workerSource(0),
+    }),
+  ).toStrictEqual([]);
+
+  expect(
+    run("max-exports-per-module", {
+      "package.json": "{}\n",
+      "wrangler.jsonc": wrangler("./src/index.ts"),
+      "src/index.ts": [
+        ...boundClasses.map(
+          (name) => `export { ${name} } from "./${name}.ts";`,
+        ),
+        "export default {};",
+      ].join("\n"),
+    }),
+  ).toStrictEqual([]);
+});
+
+test("max-exports-per-module still counts a Worker main's default and unbound exports", () => {
+  const diagnostics = run(
+    "max-exports-per-module",
+    {
+      "package.json": "{}\n",
+      "wrangler.jsonc": wrangler("./src/index.ts"),
+      "src/index.ts": workerSource(7),
+    },
+    { max: 6 },
+  );
+
+  expect(diagnostics).toHaveLength(1);
+  expect(diagnostics[0]?.message).toContain("exports 8 names");
+});
+
+test("max-exports-per-module counts bound class names in a module that is not the Worker main", () => {
+  const diagnostics = run("max-exports-per-module", {
+    "package.json": "{}\n",
+    "wrangler.jsonc": wrangler("./src/index.ts"),
+    "src/index.ts": "export default {};\n",
+    "src/classes.ts": workerSource(0),
+  });
+
+  expect(diagnostics).toHaveLength(1);
+  expect(diagnostics[0]?.message).toContain("exports 10 names");
+});
+
+test("max-exports-per-module reads bindings from env blocks", () => {
+  expect(
+    run("max-exports-per-module", {
+      "package.json": "{}\n",
+      "wrangler.json": wrangler("src/index.ts", true).replace(
+        "// Synthetic Worker configuration\n",
+        "",
+      ),
+      "src/index.ts": workerSource(0),
+    }),
+  ).toStrictEqual([]);
+});
+
+test("max-exports-per-module ignores a wrangler config whose main is another file or beyond the package root", () => {
+  expect(
+    run("max-exports-per-module", {
+      "package.json": "{}\n",
+      "wrangler.jsonc": wrangler("./src/worker.ts"),
+      "src/index.ts": workerSource(0),
+    }),
+  ).toHaveLength(1);
+
+  expect(
+    run("max-exports-per-module", {
+      "wrangler.jsonc": wrangler("./app/src/index.ts"),
+      "app/package.json": "{}\n",
+      "app/src/index.ts": workerSource(0),
+    }),
+  ).toHaveLength(1);
+});
+
+test("max-exports-per-module reports a Worker main's allowlist entry as stale once bound classes stop counting", () => {
+  const diagnostics = run(
+    "max-exports-per-module",
+    {
+      "package.json": "{}\n",
+      "wrangler.jsonc": wrangler("./src/index.ts"),
+      "src/index.ts": workerSource(0),
+    },
+    { allow: { "src/index.ts": 10 } },
+  );
+
+  expect(diagnostics).toHaveLength(1);
+  expect(diagnostics[0]?.message).toContain(
+    "exports 1 names, within the 6 limit; remove its max-exports-per-module allowlist entry src/index.ts",
+  );
+});
