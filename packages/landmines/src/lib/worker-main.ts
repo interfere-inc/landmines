@@ -10,6 +10,7 @@ const classBindings = z
   .optional();
 
 const bindingSchema = z.object({
+  name: z.string().optional(),
   durable_objects: z.object({ bindings: classBindings }).optional(),
   workflows: classBindings,
   migrations: z
@@ -23,7 +24,14 @@ const bindingSchema = z.object({
       }),
     )
     .optional(),
-  services: z.array(z.object({ entrypoint: z.string().optional() })).optional(),
+  services: z
+    .array(
+      z.object({
+        service: z.string().optional(),
+        entrypoint: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 
 const wranglerSchema = bindingSchema.extend({
@@ -40,7 +48,7 @@ interface WorkerMain {
 
 const nearest = new Map<string, WorkerMain | undefined>();
 
-function boundNames(bindings: Bindings) {
+function boundNames(bindings: Bindings, self: string | undefined) {
   const migrations = bindings.migrations ?? [];
 
   return [
@@ -53,7 +61,9 @@ function boundNames(bindings: Bindings) {
     migrations.flatMap(({ renamed_classes: renames = [] }) =>
       renames.map(({ to }) => to),
     ),
-    (bindings.services ?? []).map(({ entrypoint }) => entrypoint),
+    (bindings.services ?? [])
+      .filter(({ service }) => self !== undefined && service === self)
+      .map(({ entrypoint }) => entrypoint),
   ]
     .flat()
     .filter((name) => name !== undefined);
@@ -72,15 +82,20 @@ function readConfig(path: string) {
     return;
   }
 
-  const { main, env = {} } = config.data;
+  const { main, name, env = {} } = config.data;
 
   return {
     main: resolve(dirname(path), main),
-    names: new Set(
-      [config.data, ...Object.values(env)].flatMap((bindings) =>
-        boundNames(bindings),
+    names: new Set([
+      ...boundNames(config.data, name),
+      ...Object.entries(env).flatMap(([environment, bindings]) =>
+        boundNames(
+          bindings,
+          bindings.name ??
+            (name === undefined ? undefined : `${name}-${environment}`),
+        ),
       ),
-    ),
+    ]),
   };
 }
 

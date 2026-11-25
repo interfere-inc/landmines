@@ -242,6 +242,8 @@ const workerSource = (helpers: number) =>
   ].join("\n");
 
 const wrangler = (main: string, nested = false) => {
+  const self = nested ? "beacon-staging" : "beacon";
+
   const bindings = {
     durable_objects: {
       bindings: boundClasses
@@ -258,8 +260,8 @@ const wrangler = (main: string, nested = false) => {
       },
     ],
     services: [
-      { binding: "SELF", service: "beacon", entrypoint: boundClasses[7] },
-      { binding: "PEER", service: "beacon", entrypoint: boundClasses[8] },
+      { binding: "SELF", service: self, entrypoint: boundClasses[7] },
+      { binding: "LOOP", service: self, entrypoint: boundClasses[8] },
     ],
   };
 
@@ -372,4 +374,79 @@ test("max-exports-per-module reports a Worker main's allowlist entry as stale on
   expect(diagnostics[0]?.message).toContain(
     "exports 1 names, within the 6 limit; remove its max-exports-per-module allowlist entry src/index.ts",
   );
+});
+
+const entrypointWorker = (config: object) => ({
+  "package.json": "{}\n",
+  "wrangler.json": JSON.stringify({
+    name: "beacon",
+    main: "src/index.ts",
+    ...config,
+  }),
+  "src/index.ts": [
+    "export class Foo extends Object {}",
+    "export class Bar extends Object {}",
+    "export default {};",
+  ].join("\n"),
+});
+
+test("max-exports-per-module counts an entrypoint the Worker binds on another Worker", () => {
+  const diagnostics = run(
+    "max-exports-per-module",
+    entrypointWorker({
+      services: [
+        { binding: "PEER", service: "lighthouse", entrypoint: "Foo" },
+        { binding: "SELF", service: "beacon", entrypoint: "Bar" },
+      ],
+    }),
+    { max: 1 },
+  );
+
+  expect(diagnostics).toHaveLength(1);
+  expect(diagnostics[0]?.message).toContain("exports 2 names");
+});
+
+test("max-exports-per-module exempts an entrypoint an env block binds on its own Worker", () => {
+  expect(
+    run(
+      "max-exports-per-module",
+      entrypointWorker({
+        env: {
+          staging: {
+            services: [
+              { binding: "SELF", service: "beacon-staging", entrypoint: "Foo" },
+            ],
+          },
+          canary: {
+            name: "beacon-early",
+            services: [
+              { binding: "SELF", service: "beacon-early", entrypoint: "Bar" },
+            ],
+          },
+        },
+      }),
+      { max: 1 },
+    ),
+  ).toStrictEqual([]);
+
+  const diagnostics = run(
+    "max-exports-per-module",
+    entrypointWorker({
+      env: {
+        staging: {
+          services: [{ binding: "TOP", service: "beacon", entrypoint: "Foo" }],
+        },
+        canary: {
+          name: "beacon-early",
+          services: [
+            { binding: "PEER", service: "beacon-canary", entrypoint: "Bar" },
+          ],
+        },
+      },
+    }),
+    { max: 1 },
+  );
+
+  expect(diagnostics).toHaveLength(1);
+  expect(diagnostics[0]?.message).toContain("exports 3 names");
 });
