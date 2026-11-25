@@ -22,6 +22,8 @@ const testCallees = new Set([
 
 const timerModules = new Set(["node:timers/promises", "timers/promises"]);
 
+const storyFile = /\.stories\.[cm]?[jt]sx?$/u;
+
 type TimerBinding = "setTimeout" | "scheduler" | "namespace";
 
 function timerProperty(node: ESTree.MemberExpression) {
@@ -146,10 +148,22 @@ function calleeName(node: ESTree.Node) {
     : undefined;
 }
 
+function isStoryPlay(node: ESTree.Node | null | undefined, isStory: boolean) {
+  if (!isStory || node?.type !== "Property" || node.computed) {
+    return false;
+  }
+
+  return (
+    (node.key.type === "Identifier" && node.key.name === "play") ||
+    (node.key.type === "Literal" && node.key.value === "play")
+  );
+}
+
 const inTestBody: (
   node: ESTree.Node,
   runNow: ReadonlySet<string>,
-) => boolean = (node, runNow) => {
+  isStory: boolean,
+) => boolean = (node, runNow, isStory) => {
   let current: ESTree.Node | null = node.parent;
 
   while (
@@ -161,17 +175,24 @@ const inTestBody: (
     current = current.parent;
   }
 
-  const call = current?.parent;
+  const parent = current?.parent;
 
-  if (call?.type !== "CallExpression") {
-    return false;
-  }
-
-  if (testCallees.has(calleeRoot(call.callee) ?? "")) {
+  if (isStoryPlay(parent, isStory)) {
     return true;
   }
 
-  return runNow.has(calleeName(call.callee) ?? "") && inTestBody(call, runNow);
+  if (parent?.type !== "CallExpression") {
+    return false;
+  }
+
+  if (testCallees.has(calleeRoot(parent.callee) ?? "")) {
+    return true;
+  }
+
+  return (
+    runNow.has(calleeName(parent.callee) ?? "") &&
+    inTestBody(parent, runNow, isStory)
+  );
 };
 
 function scheduled(body: ESTree.Node | null) {
@@ -315,7 +336,9 @@ export const noFixedSleep = defineRule({
   create(context) {
     const [options] = noFixedSleepOptions.parse(context.options);
     const runNow = new Set(options?.runNow ?? defaultRunNow);
+    const isStory = storyFile.test(context.filename.replaceAll("\\", "/"));
     const sleeps: ESTree.Node[] = [];
+    const blockingSleeps: ESTree.Node[] = [];
     const timedWaits: ESTree.Node[] = [];
     const helpers = new Map<string, ESTree.Node>();
     const helperCalls: [ESTree.Node, string][] = [];
@@ -360,6 +383,13 @@ export const noFixedSleep = defineRule({
         if (isTimedWait(node)) {
           timedWaits.push(node);
         }
+
+        if (
+          isMember(node.callee, "Bun", "sleepSync") &&
+          inTestBody(node, runNow, isStory)
+        ) {
+          blockingSleeps.push(node);
+        }
       },
       Property(node) {
         if (waitsUntilIdle(node)) {
@@ -377,7 +407,7 @@ export const noFixedSleep = defineRule({
         }
       },
       AwaitExpression(node) {
-        if (!inTestBody(node, runNow)) {
+        if (!inTestBody(node, runNow, isStory)) {
           return;
         }
 
@@ -404,7 +434,7 @@ export const noFixedSleep = defineRule({
         reportAllowed(
           context,
           program,
-          [...(fakeTimers ? [] : sleeps), ...timedWaits],
+          [...(fakeTimers ? [] : sleeps), ...blockingSleeps, ...timedWaits],
           "sleep",
           undefined,
           (node) => (timedWaits.includes(node) ? "timedWait" : "sleep"),

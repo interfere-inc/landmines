@@ -29,10 +29,27 @@ function isHexByte(node: ESTree.CallExpression) {
   );
 }
 
+const loops = new Set([
+  "DoWhileStatement",
+  "ForInStatement",
+  "ForOfStatement",
+  "ForStatement",
+  "WhileStatement",
+]);
+
 function isByteMapper(node: ESTree.Node) {
+  let child = node;
   let current: ESTree.Node | null = node.parent;
 
   while (current) {
+    if (
+      loops.has(current.type) &&
+      "body" in current &&
+      current.body === child
+    ) {
+      return true;
+    }
+
     if (
       current.type === "ArrowFunctionExpression" ||
       current.type === "FunctionExpression"
@@ -49,12 +66,14 @@ function isByteMapper(node: ESTree.Node) {
         callee.type === "MemberExpression" &&
         callee.property.type === "Identifier" &&
         (callee.property.name === "map" ||
+          callee.property.name === "reduce" ||
           (callee.property.name === "from" &&
             callee.object.type === "Identifier" &&
             callee.object.name === "Array"))
       );
     }
 
+    child = current;
     current = current.parent;
   }
 

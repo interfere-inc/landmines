@@ -21,6 +21,9 @@ const inlined = [
   'const hex = Array.from(bytes).map((byte) => { return byte.toString(16).padStart(2, "0"); }).join("");',
   'const table = Array.from({ length: 256 }, (_, byte) => byte.toString(16).padStart(2, "0"));',
   'const hex = Array.from(bytes).map(function (byte) { return byte.toString(16).padStart(2, "0"); }).join("");',
+  'let hex = ""; for (const byte of bytes) { hex += byte.toString(16).padStart(2, "0"); }',
+  'let hex = ""; for (let index = 0; index < bytes.length; index++) hex += bytes[index].toString(16).padStart(2, "0");',
+  'const hex = bytes.reduce((text, byte) => text + byte.toString(16).padStart(2, "0"), "");',
 ];
 
 const allowed = [
@@ -30,6 +33,8 @@ const allowed = [
   'const hex = Array.from(bytes, (byte) => byte.toString(2).padStart(2, "0")).join("");',
   'import { bytesToHex } from "./hex"; const hex = bytesToHex(bytes);',
   'const hex = items.map((item) => item.name.padStart(2, "0"));',
+  'for (const item of items) { console.log(item); } const id = index.toString(16).padStart(2, "0");',
+  'for (const id of [index.toString(16).padStart(2, "0")]) { console.log(id); }',
 ];
 
 test.each(lintBatch(inlined, false, "style", configuration))(
