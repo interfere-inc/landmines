@@ -32,6 +32,10 @@ const files = {
   },
   "pkgs/lib/package.json": { name: "@fixture/lib" },
   "pkgs/other/package.json": { name: "@fixture/other" },
+  "pkgs/routes/package.json": {
+    name: "@fixture/routes",
+    scripts: { test: "vitest run" },
+  },
 };
 
 beforeAll(() => {
@@ -53,6 +57,13 @@ beforeAll(() => {
   writeFileSync(
     join(root, "pkgs/app/src/unit.test.js"),
     'import "./unit-data.fixture.js";',
+  );
+
+  mkdirSync(join(root, "pkgs/routes/app/demo/embed.js"), { recursive: true });
+
+  writeFileSync(
+    join(root, "pkgs/routes/app/demo/embed.js/route.ts"),
+    "export const GET = 1;",
   );
 });
 
@@ -257,4 +268,10 @@ test("a second lint of a helper gives the same result", () => {
   const file = "pkgs/app/src/contract-data.fixture.js";
 
   expect(lint(outsideRead, file)).toStrictEqual(lint(outsideRead, file));
+});
+
+test("a directory named like a source file is not read as a source", () => {
+  expect(lint(outsideRead, "pkgs/routes/app/helper.fixture.js")).toStrictEqual([
+    "iac/other/state.json",
+  ]);
 });
