@@ -166,7 +166,16 @@ export const noColdImportInTest = defineRule({
       "FunctionExpression:exit": exit,
       "ArrowFunctionExpression:exit": exit,
       ImportDeclaration(node) {
-        if (node.importKind !== "type") {
+        const erased =
+          node.importKind === "type" ||
+          (node.specifiers.length > 0 &&
+            node.specifiers.every(
+              (specifier) =>
+                specifier.type === "ImportSpecifier" &&
+                specifier.importKind === "type",
+            ));
+
+        if (!erased) {
           warm.add(moduleKey(node.source.value));
         }
       },

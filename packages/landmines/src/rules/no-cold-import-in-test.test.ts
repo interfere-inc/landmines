@@ -1,7 +1,15 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Linter } from "eslint";
 import type { ESLint } from "eslint";
-import { expect, test } from "vitest";
+import { afterAll, expect, test } from "vitest";
 import { noColdImportInTest } from "./no-cold-import-in-test";
+import { lintBatch, ruleConfiguration } from "./rule.test-utils";
+
+const directory = mkdtempSync(join(tmpdir(), "no-cold-import-in-test-"));
+
+afterAll(() => rmSync(directory, { recursive: true, force: true }));
 
 const linter = new Linter();
 
@@ -68,4 +76,44 @@ test("enforces the exact allowlisted count", () => {
       .verify("", options, { filename: "fixture.js" })
       .map(({ messageId }) => messageId),
   ).toStrictEqual(["stale"]);
+});
+
+const configuration = ruleConfiguration(
+  directory,
+  "testing/no-cold-import-in-test",
+);
+
+test.each(
+  lintBatch(
+    [
+      'import type { Data } from "./a.js"; test("x", async () => { await import("./a.js"); });',
+      'import { type Data } from "./a.js"; test("x", async () => { await import("./a.js"); });',
+      'import { type Data, type Row } from "./a.js"; test("x", async () => { await import("./a.js"); });',
+    ],
+    false,
+    "testing",
+    configuration,
+    "fixture.test.ts",
+  ),
+)(
+  "reports a load that only an erased type import precedes: %s",
+  (_, result) => {
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-cold-import-in-test");
+  },
+);
+
+test.each(
+  lintBatch(
+    [
+      'import { type Data, load } from "./a.js"; test("x", async () => { await import("./a.js"); });',
+      'import "./a.js"; test("x", async () => { await import("./a.js"); });',
+    ],
+    false,
+    "testing",
+    configuration,
+    "fixture.test.ts",
+  ),
+)("keeps a type import that also loads a value warm: %s", (_, result) => {
+  expect(result.status).toBe(0);
 });
