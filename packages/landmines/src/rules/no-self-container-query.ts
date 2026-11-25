@@ -29,7 +29,7 @@ function segments(token: string) {
   return parts;
 }
 
-function selfQueries(classes: string) {
+function utilities(classes: string) {
   const containers = new Set<string>();
   const queries: { variant: string; name: string }[] = [];
 
@@ -52,11 +52,41 @@ function selfQueries(classes: string) {
     }
   }
 
-  if (containers.size === 0) {
-    return [];
+  return { containers, queries };
+}
+
+type Branches = Map<ESTree.Node, ESTree.Node>;
+
+function branchesOf(node: ESTree.Node, attribute: ESTree.JSXAttribute) {
+  const branches: Branches = new Map();
+  let child = node;
+
+  while (child.parent && child !== attribute) {
+    const { parent } = child;
+
+    if (
+      parent.type === "ConditionalExpression" &&
+      (parent.consequent === child || parent.alternate === child)
+    ) {
+      branches.set(parent, child);
+    }
+
+    child = parent;
   }
 
-  return queries.filter(({ name }) => name === "" || containers.has(name));
+  return branches;
+}
+
+function exclusive(left: Branches, right: Branches) {
+  for (const [conditional, branch] of left) {
+    const other = right.get(conditional);
+
+    if (other && other !== branch) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function classAttributeOf(node: ESTree.Node) {
@@ -94,13 +124,18 @@ export const noSelfContainerQuery = defineRule({
     },
   },
   create(context) {
-    const classes = new Map<ESTree.JSXAttribute, string[]>();
+    type Value = ReturnType<typeof utilities> & { branches: Branches };
+
+    const classes = new Map<ESTree.JSXAttribute, Value[]>();
 
     function collect(node: ESTree.Node, value: string | null | undefined) {
       const attribute = classAttributeOf(node);
 
       if (attribute && value) {
-        classes.set(attribute, [...(classes.get(attribute) ?? []), value]);
+        classes.set(attribute, [
+          ...(classes.get(attribute) ?? []),
+          { ...utilities(value), branches: branchesOf(node, attribute) },
+        ]);
       }
     }
 
@@ -114,7 +149,19 @@ export const noSelfContainerQuery = defineRule({
       "Program:exit"() {
         for (const [attribute, values] of classes) {
           const variants = new Set(
-            selfQueries(values.join(" ")).map(({ variant }) => variant),
+            values.flatMap((query) =>
+              query.queries
+                .filter(({ name }) =>
+                  values.some(
+                    (container) =>
+                      !exclusive(query.branches, container.branches) &&
+                      (name === ""
+                        ? container.containers.size > 0
+                        : container.containers.has(name)),
+                  ),
+                )
+                .map(({ variant }) => variant),
+            ),
           );
 
           for (const variant of variants) {
