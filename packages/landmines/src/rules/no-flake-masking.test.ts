@@ -83,6 +83,25 @@ const timeouts = [
   "export default defineConfig({ test: { testTimeout: 30_000, hookTimeout: 60_000 } });",
   "export default defineConfig({ test: { testTimeout: 60000, hookTimeout: 60000 } });",
   "export default defineConfig({ test: { projects: [{ test: { name: 'e2e', testTimeout: 60_000 } }] } });",
+  'import { test } from "@playwright/test";\ntest.describe.configure({ timeout: 60_000 });',
+  'import { test } from "@playwright/test";\ntest.describe.configure({ timeout: 0 });',
+  'import { test } from "@playwright/test";\ntest.describe.configure({ mode: "serial", timeout: 60_000 });',
+  'import { test as base } from "./fixtures";\nconst test = base.extend({});\ntest.describe.configure({ timeout });',
+  'import { test } from "@playwright/test";\ntest.setTimeout(60_000);',
+  'import { test } from "@playwright/test";\ntest.setTimeout(0);',
+  'import { test } from "@playwright/test";\ntest.slow();',
+  'import { test } from "@playwright/test";\ntest.slow(browserName === "firefox", "firefox is slow");',
+  'import { test } from "@playwright/test";\ntest.slow(({ browserName }) => browserName === "firefox", "firefox is slow");',
+  'import { test } from "@playwright/test";\ntest.info().setTimeout(60_000);',
+  'import { test } from "@playwright/test";\ntest.info().slow();',
+  'import { test } from "./fixtures";\ntest.setTimeout(60_000);',
+  'import { test as base } from "./fixtures";\nconst test = base.extend({});\ntest("x", async () => { test.slow(); });',
+  'import { test as it } from "./fixtures";\nit.setTimeout(60_000);',
+  'import { test } from "@playwright/test";\ntest("x", async ({ page }, testInfo) => { testInfo.setTimeout(60_000); });',
+  'import { test } from "@playwright/test";\ntest("x", async ({ page }, testInfo) => { testInfo.slow(); });',
+  'import { test } from "@playwright/test";\ntest.beforeEach(async ({ page }, testInfo) => { testInfo.setTimeout(60_000); });',
+  'import { test } from "@playwright/test";\ntest.only("x", async ({ page }, testInfo) => { testInfo.slow(); });',
+  'import { test } from "@playwright/test";\ntest("x", async ({ page }, testInfo) => { await test.step("y", async () => { testInfo.setTimeout(60_000); }); });',
 ];
 
 const valid = [
@@ -108,6 +127,21 @@ const valid = [
   "jest.retryTimes(0);",
   "export default defineConfig({ retries: 2 });",
   "const flaky = { describe: { configure() {} } };\nflaky.describe.configure({ retries: 2 });",
+  "setTimeout(resolve, 100);",
+  "window.setTimeout(resolve, 100);",
+  "globalThis.setTimeout(resolve, 100);",
+  "const test = { setTimeout() {}, slow() {} };\ntest.setTimeout(5_000);\ntest.slow();",
+  "function run(test) { test.setTimeout(5_000); test.slow(); }",
+  'import { clock } from "./clock";\nclock.setTimeout(resolve, 100);',
+  'import { page } from "./page";\npage.setDefaultTimeout(5_000);',
+  "const flaky = { describe: { configure() {} } };\nflaky.describe.configure({ timeout: 1 });",
+  'import { test } from "@playwright/test";\ntest.describe.configure({ mode: "parallel" });',
+  'import { test } from "@playwright/test";\ntest("x", async ({ page }, testInfo) => { const inner = (testInfo) => { testInfo.setTimeout(5); }; });',
+  "function wait(page, testInfo) { testInfo.setTimeout(5); }",
+  'test.each(rows)("x", (row, clock) => clock.setTimeout(5));',
+  'test("x", (clock) => { clock.setTimeout(5); });',
+  'import { test } from "./fixtures";\ntest.slow("loads", async () => {});',
+  `import { test } from "./fixtures";\ntest.slow(\`loads \${name}\`, async () => {});`,
 ];
 
 test.each(lintBatch(retries, false, "testing", config))(
@@ -215,4 +249,56 @@ test.each(
   expect(result.status).toBe(1);
 
   expect(result.output).toContain("Do not raise a test's timeout");
+});
+
+test.each(
+  lintBatch(
+    ['import { test } from "@playwright/test";\ntest.setTimeout(120_000);'],
+    false,
+    "testing",
+    allowed,
+    "src/slow/build.test.ts",
+  ),
+)(
+  "accepts one Playwright timeout in allowlisted files: %s",
+  (_code, result) => {
+    expect(result.status).toBe(0);
+  },
+);
+
+test.each(
+  lintBatch(
+    [
+      'import { test } from "@playwright/test";\ntest.slow();\ntest.setTimeout(1);',
+    ],
+    false,
+    "testing",
+    allowed,
+    "src/slow/build.test.ts",
+  ),
+)(
+  "rejects Playwright timeouts beyond the allowlisted count: %s",
+  (_code, result) => {
+    expect(result.status).toBe(1);
+
+    expect(result.output).toContain("Do not raise a test's timeout");
+
+    expect(result.output.match(/Do not raise a test's timeout/gu)).toHaveLength(
+      2,
+    );
+  },
+);
+
+test.each(
+  lintBatch(
+    [
+      'import { test } from "@playwright/test";\ntest.slow(cond, "why");',
+      'import { test } from "@playwright/test";\ntest.setTimeout(60_000);',
+    ],
+    false,
+    "testing",
+    config,
+  ),
+)("reports a Playwright timeout call once: %s", (_code, result) => {
+  expect(JSON.parse(result.output)).toHaveLength(1);
 });
