@@ -6,14 +6,16 @@ import { allowlistSchema, reportAllowed } from "../lib/allowlist.ts";
 
 type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
 
-type Owner = "test" | "warm" | "hook" | { helper: string };
+type Owner = "test" | "warm" | "warmHook" | "hook" | { helper: string };
 
 interface Load {
   node: ESTree.ImportExpression;
   key: string;
 }
 
-const warmers = new Set(["beforeAll", "describe", "suite"]);
+const warmers = new Set(["describe", "suite"]);
+
+const warmHooks = new Set(["beforeAll"]);
 
 const hooks = new Set([
   "beforeEach",
@@ -72,7 +74,11 @@ function ownerOf(node: FunctionNode) {
       return "hook";
     }
 
-    if (warmers.has(root) || member === "beforeAll") {
+    if (warmHooks.has(root) || warmHooks.has(member)) {
+      return "warmHook";
+    }
+
+    if (warmers.has(root)) {
       return "warm";
     }
 
@@ -130,7 +136,9 @@ export const noColdImportInTest = defineRule({
         "Keep the first, cold dynamic import of a module outside test assertion budgets.",
     },
     messages: {
-      cold: "Only a test reaches this dynamic import, so the 5 s test budget measures a cold module load instead of the assertion and fails under CI load. Import the same specifier once at module scope, in describe or in beforeAll; vi.resetModules() re-imports in tests then only re-evaluate it.",
+      cold: "Only a test reaches this dynamic import, so the 5 s test budget measures a cold module load instead of the assertion and fails under CI load. Import the same specifier once at module scope or in describe; vi.resetModules() re-imports in tests then only re-evaluate it.",
+      coldHook:
+        "This dynamic import runs inside a hook, so a cold module load competes with the hook's own timeout instead of the assertion it sets up for. Import the same specifier once at module scope or in describe; vi.resetModules() re-imports in tests then only re-evaluate it.",
       stale:
         "This file now has {{count}} cold imports in tests; lower its no-cold-import-in-test allowlist entry for {{path}} to {{count}}, or remove the entry at 0.",
     },
@@ -139,6 +147,7 @@ export const noColdImportInTest = defineRule({
     const stack: (Owner | undefined)[] = [];
     const warm = new Set<string>();
     const inTests: Load[] = [];
+    const inHooks: Load[] = [];
     const inHelpers = new Map<string, Load[]>();
     const calls = new Map<string, Set<string>>();
     const fromTests = new Set<string>();
@@ -166,7 +175,16 @@ export const noColdImportInTest = defineRule({
       "FunctionExpression:exit": exit,
       "ArrowFunctionExpression:exit": exit,
       ImportDeclaration(node) {
-        if (node.importKind !== "type") {
+        const erased =
+          node.importKind === "type" ||
+          (node.specifiers.length > 0 &&
+            node.specifiers.every(
+              (specifier) =>
+                specifier.type === "ImportSpecifier" &&
+                specifier.importKind === "type",
+            ));
+
+        if (!erased) {
           warm.add(moduleKey(node.source.value));
         }
       },
@@ -174,11 +192,13 @@ export const noColdImportInTest = defineRule({
         const key = importedKey(node);
         const current = owner();
 
-        if (key === undefined || current === "hook") {
+        if (key === undefined) {
           return;
         }
 
-        if (current === "warm") {
+        if (current === "hook" || current === "warmHook") {
+          inHooks.push({ node, key });
+        } else if (current === "warm") {
           warm.add(key);
         } else if (current === "test") {
           inTests.push({ node, key });
@@ -198,7 +218,7 @@ export const noColdImportInTest = defineRule({
 
         const { name } = node.callee;
 
-        if (current === "warm") {
+        if (current === "warm" || current === "warmHook") {
           fromWarm.add(name);
         } else if (current === "test") {
           fromTests.add(name);
@@ -216,6 +236,15 @@ export const noColdImportInTest = defineRule({
           }
         }
 
+        const hookReports: ESTree.ImportExpression[] = [];
+
+        for (const { key, node } of inHooks) {
+          if (!warm.has(key)) {
+            hookReports.push(node);
+            warm.add(key);
+          }
+        }
+
         const loads = [
           ...inTests,
           ...[...reachable(fromTests, calls)].flatMap(
@@ -223,11 +252,18 @@ export const noColdImportInTest = defineRule({
           ),
         ];
 
+        const hookNodes = new Set<ESTree.Node>(hookReports);
+
         reportAllowed(
           context,
           program,
-          loads.flatMap(({ key, node }) => (warm.has(key) ? [] : [node])),
+          [
+            ...hookReports,
+            ...loads.flatMap(({ key, node }) => (warm.has(key) ? [] : [node])),
+          ],
           "cold",
+          undefined,
+          (node) => (hookNodes.has(node) ? "coldHook" : "cold"),
         );
       },
     };
