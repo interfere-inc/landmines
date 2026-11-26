@@ -20,8 +20,12 @@ export const paddingBetweenStatements = defineRule({
     const source = context.sourceCode.text;
 
     function check(statements: ESTree.Program["body"]) {
-      for (const [index, next] of statements.entries()) {
-        const previous = statements[index - 1];
+      const relevant = statements.filter(
+        (node) => !node.type.startsWith("Svelte"),
+      );
+
+      for (const [index, next] of relevant.entries()) {
+        const previous = relevant[index - 1];
 
         if (previous === undefined) {
           continue;
@@ -81,6 +85,9 @@ export const paddingBetweenStatements = defineRule({
       StaticBlock: (node) => check(node.body),
       SwitchCase: (node) => check(node.consequent),
       TSModuleBlock: (node) => check(node.body),
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- oxlint never parses .svelte files; this key only ever runs under svelte-eslint-parser, whose SvelteScriptElement.body is ESTree.Program["body"].
+      SvelteScriptElement: ((node: { body: ESTree.Program["body"] }) =>
+        check(node.body)) as unknown as (node: ESTree.Node) => void,
     };
   },
 });
