@@ -1,0 +1,22 @@
+{
+  "jsPlugins": [
+    {
+      "name": "landmines",
+      "specifier": "@interfere/landmines"
+    }
+  ],
+  "rules": {
+    "landmines/no-clipboard-read-text": "error",
+    "landmines/no-cold-import-in-test": "error",
+    "landmines/no-cold-start-in-test": "error",
+    "landmines/no-elapsed-time-bound": "error",
+    "landmines/no-fixed-sleep": "error",
+    "landmines/no-flake-masking": "error",
+    "landmines/no-imported-mutation": "error",
+    "landmines/no-parameter-branch": "error",
+    "landmines/no-shared-signal": "error",
+    "landmines/no-styling-class-assertion": "error",
+    "landmines/no-test-doubles": "error",
+    "landmines/no-unsignaled-poll": "error"
+  }
+}

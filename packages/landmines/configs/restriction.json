@@ -1,0 +1,18 @@
+{
+  "jsPlugins": [
+    {
+      "name": "landmines",
+      "specifier": "@interfere/landmines"
+    }
+  ],
+  "rules": {
+    "landmines/colocated-tests": "error",
+    "landmines/no-comments": "error",
+    "landmines/no-github-scripts": "error",
+    "landmines/no-scripts-directory": "error",
+    "landmines/package-exports": "error",
+    "landmines/package-scripts": "warn",
+    "landmines/test-dir-only-cross-functional": "error",
+    "landmines/test-file-names": "error"
+  }
+}

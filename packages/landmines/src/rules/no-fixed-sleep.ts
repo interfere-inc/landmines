@@ -1,5 +1,5 @@
 import { defineRule } from "@oxlint/plugins";
-import type { ESTree } from "@oxlint/plugins";
+import type { ESTree, Scope, SourceCode } from "@oxlint/plugins";
 
 import { z } from "zod";
 
@@ -21,6 +21,85 @@ const testCallees = new Set([
 ]);
 
 const timerModules = new Set(["node:timers/promises", "timers/promises"]);
+
+const storyFile = /\.stories\.[cm]?[jt]sx?$/u;
+
+type TimerBinding = "setTimeout" | "scheduler" | "namespace";
+
+function timerProperty(node: ESTree.MemberExpression) {
+  if (!node.computed && node.property.type === "Identifier") {
+    return node.property.name;
+  }
+
+  if (node.computed && node.property.type === "Literal") {
+    return node.property.value;
+  }
+
+  return null;
+}
+
+const timerBinding: (
+  source: SourceCode,
+  node: ESTree.Node,
+) => TimerBinding | undefined = (source, node) => {
+  if (node.type === "MemberExpression") {
+    const property = timerProperty(node);
+    const object = timerBinding(source, node.object);
+
+    if (object === "namespace") {
+      return property === "setTimeout" || property === "scheduler"
+        ? property
+        : undefined;
+    }
+
+    return object === "scheduler" && property === "wait"
+      ? "setTimeout"
+      : undefined;
+  }
+
+  if (node.type !== "Identifier") {
+    return;
+  }
+
+  for (
+    let scope: Scope | null = source.getScope(node);
+    scope !== null;
+    scope = scope.upper
+  ) {
+    const definition = scope.set.get(node.name)?.defs[0];
+
+    if (!definition) {
+      continue;
+    }
+
+    const { node: importedNode, parent } = definition;
+
+    if (
+      parent?.type !== "ImportDeclaration" ||
+      !timerModules.has(parent.source.value)
+    ) {
+      return;
+    }
+
+    if (importedNode.type === "ImportSpecifier") {
+      const imported =
+        importedNode.imported.type === "Identifier"
+          ? importedNode.imported.name
+          : importedNode.imported.value;
+
+      return imported === "setTimeout" || imported === "scheduler"
+        ? imported
+        : undefined;
+    }
+
+    return importedNode.type === "ImportNamespaceSpecifier" ||
+      importedNode.type === "ImportDefaultSpecifier"
+      ? "namespace"
+      : undefined;
+  }
+
+  return node.name === "scheduler" ? "scheduler" : undefined;
+};
 
 function isMember(node: ESTree.Node, object: string, property: string) {
   return (
@@ -69,7 +148,11 @@ function calleeName(node: ESTree.Node) {
     : undefined;
 }
 
-function fakeTimerScope(node: ESTree.Node, runNow: ReadonlySet<string>) {
+function fakeTimerScope(
+  node: ESTree.Node,
+  runNow: ReadonlySet<string>,
+  isStory: boolean,
+) {
   let current = node;
   let sharedSetup = false;
 
@@ -79,6 +162,10 @@ function fakeTimerScope(node: ESTree.Node, runNow: ReadonlySet<string>) {
       current.type === "FunctionExpression"
         ? current.parent
         : null;
+
+    if (isStoryPlay(call, isStory)) {
+      return current;
+    }
 
     const name =
       call?.type === "CallExpression" ? calleeRoot(call.callee) : undefined;
@@ -115,10 +202,22 @@ function fakeTimerScope(node: ESTree.Node, runNow: ReadonlySet<string>) {
   return current;
 }
 
+function isStoryPlay(node: ESTree.Node | null | undefined, isStory: boolean) {
+  if (!isStory || node?.type !== "Property" || node.computed) {
+    return false;
+  }
+
+  return (
+    (node.key.type === "Identifier" && node.key.name === "play") ||
+    (node.key.type === "Literal" && node.key.value === "play")
+  );
+}
+
 const inTestBody: (
   node: ESTree.Node,
   runNow: ReadonlySet<string>,
-) => boolean = (node, runNow) => {
+  isStory: boolean,
+) => boolean = (node, runNow, isStory) => {
   let current: ESTree.Node | null = node.parent;
 
   while (
@@ -130,17 +229,24 @@ const inTestBody: (
     current = current.parent;
   }
 
-  const call = current?.parent;
+  const parent = current?.parent;
 
-  if (call?.type !== "CallExpression") {
-    return false;
-  }
-
-  if (testCallees.has(calleeRoot(call.callee) ?? "")) {
+  if (isStoryPlay(parent, isStory)) {
     return true;
   }
 
-  return runNow.has(calleeName(call.callee) ?? "") && inTestBody(call, runNow);
+  if (parent?.type !== "CallExpression") {
+    return false;
+  }
+
+  if (testCallees.has(calleeRoot(parent.callee) ?? "")) {
+    return true;
+  }
+
+  return (
+    runNow.has(calleeName(parent.callee) ?? "") &&
+    inTestBody(parent, runNow, isStory)
+  );
 };
 
 function scheduled(body: ESTree.Node | null) {
@@ -200,6 +306,61 @@ function resolvesAfterTimeout(node: ESTree.NewExpression) {
   );
 }
 
+const idleStates = new Set(["networkidle", "networkidle0", "networkidle2"]);
+
+function isIdleState(node: ESTree.Node | undefined) {
+  return node?.type === "Literal" && idleStates.has(String(node.value));
+}
+
+function isTimedWait(node: ESTree.CallExpression) {
+  const { callee } = node;
+
+  if (
+    callee.type !== "MemberExpression" ||
+    callee.computed ||
+    callee.property.type !== "Identifier"
+  ) {
+    return false;
+  }
+
+  const [state] = node.arguments;
+
+  return (
+    callee.property.name === "waitForTimeout" ||
+    (callee.property.name === "waitForLoadState" && isIdleState(state))
+  );
+}
+
+function waitsUntilIdle(node: ESTree.Node) {
+  return (
+    node.type === "Property" &&
+    !node.computed &&
+    node.key.type === "Identifier" &&
+    node.key.name === "waitUntil" &&
+    isIdleState(node.value)
+  );
+}
+
+function returned(node: ESTree.Node | null | undefined) {
+  if (
+    node?.type !== "ArrowFunctionExpression" &&
+    node?.type !== "FunctionExpression" &&
+    node?.type !== "FunctionDeclaration"
+  ) {
+    return null;
+  }
+
+  const { body } = node;
+
+  if (body?.type !== "BlockStatement") {
+    return body ?? null;
+  }
+
+  const last = body.body.at(-1);
+
+  return last?.type === "ReturnStatement" ? last.argument : null;
+}
+
 export const noFixedSleep = defineRule({
   meta: {
     type: "problem",
@@ -215,11 +376,13 @@ export const noFixedSleep = defineRule({
     ],
     docs: {
       description:
-        "Disallow awaiting a fixed real-time sleep in a test or hook body.",
+        "Disallow awaiting a fixed real-time sleep in a test or hook body, and Playwright's timed waits anywhere.",
     },
     messages: {
       sleep:
-        "Replace this fixed sleep with a signal: await the operation itself or a promise its handler resolves. To move time, use vi.useFakeTimers() and advance it. A sleep guesses how long real work takes and fails under CPU load.",
+        "Replace this fixed sleep with a signal: await the operation itself or a promise its handler resolves. To move time, use fake timers (vi.useFakeTimers() or jest.useFakeTimers()) and advance them. A sleep guesses how long real work takes and fails under CPU load.",
+      timedWait:
+        "Replace this timed Playwright wait with the state you need: a web-first assertion (await expect(locator).toBeVisible()), page.waitForResponse, page.waitForEvent or page.waitForFunction. waitForTimeout and networkidle guess how long real work takes and fail under CPU load.",
       stale:
         "This file now has {{count}} fixed sleeps; lower its no-fixed-sleep allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0.",
     },
@@ -227,9 +390,21 @@ export const noFixedSleep = defineRule({
   create(context) {
     const [options] = noFixedSleepOptions.parse(context.options);
     const runNow = new Set(options?.runNow ?? defaultRunNow);
-    const timers = new Set<string>();
+    const isStory = storyFile.test(context.filename.replaceAll("\\", "/"));
     const sleeps: ESTree.Node[] = [];
     const fakeTimers = new Set<ESTree.Node>();
+    const blockingSleeps: ESTree.Node[] = [];
+    const timedWaits: ESTree.Node[] = [];
+    const helpers = new Map<string, ESTree.Node>();
+    const helperCalls: [ESTree.Node, string][] = [];
+
+    function recordHelper(name: string, node: ESTree.Node | null | undefined) {
+      const value = returned(node);
+
+      if (value) {
+        helpers.set(name, value);
+      }
+    }
 
     function isSleep(node: ESTree.Node) {
       if (node.type === "NewExpression") {
@@ -245,8 +420,7 @@ export const noFixedSleep = defineRule({
       }
 
       return (
-        (node.callee.type === "Identifier" && timers.has(node.callee.name)) ||
-        isMember(node.callee, "scheduler", "wait") ||
+        timerBinding(context.sourceCode, node.callee) === "setTimeout" ||
         isMember(node.callee, "Bun", "sleep")
       );
     }
@@ -266,37 +440,76 @@ export const noFixedSleep = defineRule({
     }
 
     return {
-      ImportDeclaration(node) {
-        if (!timerModules.has(node.source.value)) {
-          return;
+      CallExpression(node) {
+        if (
+          isMember(node.callee, "vi", "useFakeTimers") ||
+          isMember(node.callee, "jest", "useFakeTimers")
+        ) {
+          fakeTimers.add(fakeTimerScope(node, runNow, isStory));
         }
 
-        for (const specifier of node.specifiers) {
-          if (
-            specifier.type === "ImportSpecifier" &&
-            specifier.imported.type === "Identifier" &&
-            specifier.imported.name === "setTimeout"
-          ) {
-            timers.add(specifier.local.name);
-          }
+        if (isTimedWait(node)) {
+          timedWaits.push(node);
+        }
+
+        if (
+          isMember(node.callee, "Bun", "sleepSync") &&
+          inTestBody(node, runNow, isStory)
+        ) {
+          blockingSleeps.push(node);
         }
       },
-      CallExpression(node) {
-        if (isMember(node.callee, "vi", "useFakeTimers")) {
-          fakeTimers.add(fakeTimerScope(node, runNow));
+      Property(node) {
+        if (waitsUntilIdle(node)) {
+          timedWaits.push(node);
+        }
+      },
+      FunctionDeclaration(node) {
+        if (node.id) {
+          recordHelper(node.id.name, node);
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id.type === "Identifier") {
+          recordHelper(node.id.name, node.init);
         }
       },
       AwaitExpression(node) {
-        if (isSleep(node.argument) && inTestBody(node, runNow)) {
+        if (!inTestBody(node, runNow, isStory)) {
+          return;
+        }
+
+        const { argument } = node;
+
+        if (isSleep(argument)) {
           sleeps.push(node);
+        } else if (
+          argument.type === "CallExpression" &&
+          argument.callee.type === "Identifier"
+        ) {
+          helperCalls.push([node, argument.callee.name]);
         }
       },
       "Program:exit"(program) {
+        for (const [node, name] of helperCalls) {
+          const value = helpers.get(name);
+
+          if (value && isSleep(value)) {
+            sleeps.push(node);
+          }
+        }
+
         reportAllowed(
           context,
           program,
-          sleeps.filter((node) => !usesFakeTimers(node)),
+          [
+            ...sleeps.filter((node) => !usesFakeTimers(node)),
+            ...blockingSleeps,
+            ...timedWaits,
+          ],
           "sleep",
+          undefined,
+          (node) => (timedWaits.includes(node) ? "timedWait" : "sleep"),
         );
       },
     };

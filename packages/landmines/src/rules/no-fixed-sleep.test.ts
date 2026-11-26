@@ -24,8 +24,19 @@ const sleeps = [
   "it('x', async () => { await new Promise((resolve) => window.setTimeout(resolve, 600)); });",
   'import { setTimeout as sleep } from "node:timers/promises"; test("x", async () => { await sleep(500); });',
   'import { setTimeout } from "timers/promises"; afterEach(async () => { await setTimeout(20); });',
+  'import * as timers from "node:timers/promises"; test("x", async () => { await timers.setTimeout(20); });',
+  'import timers from "timers/promises"; test("x", async () => { await timers.setTimeout(20); });',
+  'import * as timers from "timers/promises"; afterEach(async () => { await timers["setTimeout"](20); });',
+  'import { scheduler as timerScheduler } from "node:timers/promises"; test("x", async () => { await timerScheduler.wait(20); });',
+  'import * as timers from "node:timers/promises"; test("x", async () => { await timers.scheduler.wait(20); });',
+  'import timers from "timers/promises"; test("x", async () => { await timers["scheduler"]["wait"](20); });',
+  'import { "setTimeout" as sleep } from "node:timers/promises"; test("x", async () => { await sleep(20); });',
   "beforeEach(async () => { await scheduler.wait(10); });",
   "test('x', async () => { await Bun.sleep(100); });",
+  "test('x', () => { Bun.sleepSync(100); });",
+  "beforeEach(() => { Bun.sleepSync(20); });",
+  "test('x', () => { act(() => { Bun.sleepSync(10); }); });",
+  "test('x', () => { vi.useFakeTimers(); Bun.sleepSync(100); });",
   "test.each([1])('x %s', async () => { await scheduler.wait(1); });",
   "test.concurrent('x', async () => { await scheduler.wait(1); });",
   "it.skipIf(ci)('x', async function () { await scheduler.wait(1); });",
@@ -40,6 +51,11 @@ const sleeps = [
   "afterEach(() => load().finally(async () => { await scheduler.wait(1); }));",
   "test('x', async () => { await act(() => load().then(async () => { await scheduler.wait(1); })); });",
   "test('x', async () => { await test.step('open', async () => { await scheduler.wait(1); }); });",
+  "const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)); test('x', async () => { await sleep(200); });",
+  "test('x', async () => { await pause(200); }); function pause(ms) { return new Promise((resolve) => { setTimeout(resolve, ms); }); }",
+  "const nap = function (ms) { return Bun.sleep(ms); }; beforeEach(async () => { await nap(5); });",
+  'import { setTimeout as wait } from "node:timers/promises"; const sleep = (ms) => wait(ms); test("x", async () => { await sleep(5); });',
+  "test('x', async () => { jest.useRealTimers(); await scheduler.wait(1); });",
 ];
 
 const signals = [
@@ -52,6 +68,11 @@ const signals = [
   "test('x', async () => { await new Promise((resolve) => { setTimeout(resolve, 10); queueMicrotask(resolve); }); });",
   "test('x', async () => { await new Promise((resolve) => { emitter.once('done', resolve); }); });",
   'import { setImmediate } from "node:timers/promises"; test("x", async () => { await setImmediate(); });',
+  'import * as timers from "node:timers/promises"; test("x", async () => { await timers.setImmediate(); });',
+  'import * as timers from "./timers"; test("x", async () => { await timers.setTimeout(20); });',
+  'import { setTimeout as sleep } from "node:timers/promises"; test("x", async (sleep) => { await sleep(20); });',
+  'import * as timers from "node:timers/promises"; test("x", async (timers) => { await timers.setTimeout(20); });',
+  'const scheduler = { wait: operation }; test("x", async () => { await scheduler.wait(20); });',
   "test('x', async () => { const timer = setTimeout(cancel, 10); await work(); clearTimeout(timer); });",
   "test('x', async ({ page }) => { await page.route(url, async (route) => { await scheduler.wait(300); await route.fulfill({ status: 200 }); }); });",
   "test('x', async () => { await server.listen(async () => { await scheduler.wait(10); }); });",
@@ -59,13 +80,20 @@ const signals = [
   "test('x', async () => { await act(async () => { serve(async () => { await scheduler.wait(10); return new Response(); }); }); });",
   "async function settle() { await act(async () => { await scheduler.wait(1); }); } test('x', async () => { await settle(); });",
   "act(async () => { await scheduler.wait(1); });",
+  'import { expect, jest, test } from "@jest/globals"; test("x", async () => { jest.useFakeTimers({ advanceTimers: true }); await new Promise((resolve) => setTimeout(resolve, 200)); expect(1).toBe(1); });',
+  'import { jest, test } from "bun:test"; test("x", async () => { jest.useFakeTimers(); await new Promise((resolve) => setTimeout(resolve, 200)); });',
+  "const load = (id) => fetch(id); test('x', async () => { await load('a'); });",
+  "const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)); export async function retry() { await sleep(5); }",
+  "export function waitSync() { Bun.sleepSync(10); }",
+  "test('x', () => { serve(() => { Bun.sleepSync(10); return new Response(); }); });",
+  "export const player = { play: async () => { await Bun.sleep(10); } };",
 ];
 
 test.each(
   lintBatch(sleeps, false, "testing", configuration(), "fixture.test.ts"),
 )("rejects a fixed sleep in a test or hook body: %s", (_, result) => {
   expect(result.status).toBe(1);
-  expect(result.output).toContain("landmines-testing(no-fixed-sleep)");
+  expect(result.output).toContain("landmines(no-fixed-sleep)");
   expect(result.output).toContain("Replace this fixed sleep with a signal");
 });
 
@@ -136,6 +164,7 @@ test.each([
 
 test.each([
   "beforeEach(() => { vi.useFakeTimers(); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
+  "beforeEach(() => { jest.useFakeTimers(); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
   "beforeAll(() => { vi.useFakeTimers(); }); test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); });",
   "describe('outer', () => { beforeEach(() => { vi.useFakeTimers(); }); describe('inner', () => { test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); }); });",
   "beforeEach(() => { vi.useFakeTimers(); }); suite('nested', () => { test('fake', async () => { await new Promise((resolve) => setTimeout(resolve, 1)); }); });",
@@ -263,3 +292,121 @@ test("asks to lower an allowlist entry once its file has fewer sleeps", () => {
   expect(result.status).toBe(1);
   expect(result.output).toContain("This file now has 0 fixed sleeps");
 });
+
+const timedWaits = [
+  "test('x', async ({ page }) => { await page.waitForTimeout(5000); });",
+  "export async function settle(page) { await page.waitForTimeout(SETTLE_MS); }",
+  "export async function open(frame) { await frame.waitForLoadState('networkidle'); }",
+  "test('x', async ({ page }) => { await page.goto(url, { waitUntil: 'networkidle' }); });",
+  "await page.goto(url, { waitUntil: 'networkidle0' });",
+  "test('x', async ({ page }) => { vi.useFakeTimers(); await page.waitForTimeout(1); });",
+];
+
+const signaledWaits = [
+  "test('x', async ({ page }) => { await expect(page.getByText('Saved')).toBeVisible(); });",
+  "test('x', async ({ page }) => { await page.waitForLoadState('domcontentloaded'); });",
+  "test('x', async ({ page }) => { await page.goto(url, { waitUntil: 'load' }); });",
+  "test('x', async ({ page }) => { await page.waitForResponse('**/api/save'); });",
+  "const options = { waitUntil: idle };",
+];
+
+test.each(
+  lintBatch(timedWaits, false, "testing", configuration(), "fixture.e2e.ts"),
+)("rejects a timed Playwright wait anywhere: %s", (_, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("landmines(no-fixed-sleep)");
+  expect(result.output).toContain("Replace this timed Playwright wait");
+});
+
+test.each(
+  lintBatch(signaledWaits, false, "testing", configuration(), "fixture.e2e.ts"),
+)("allows Playwright waits on page state: %s", (_, result) => {
+  expect(result.status).toBe(0);
+});
+
+test("counts timed waits toward the file's allowlist entry", () => {
+  expect(
+    lint(
+      "test('x', async ({ page }) => { await scheduler.wait(1); await page.waitForTimeout(1); });",
+      false,
+      "testing",
+      configuration({ "0/fixture.e2e.ts": 2 }),
+      "fixture.e2e.ts",
+    ).status,
+  ).toBe(0);
+});
+
+const storySleeps = [
+  "export const Default = { play: async () => { await new Promise((resolve) => setTimeout(resolve, 100)); } };",
+  "export const Default = { async play() { await Bun.sleep(50); } };",
+  "export const Default = { play: () => { Bun.sleepSync(50); } };",
+  "export const Default = meta.story({ play: async ({ step }) => { await step('open', async () => { await scheduler.wait(10); }); } });",
+  "const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)); export const Default = { play: async () => { await sleep(50); } };",
+];
+
+const storySignals = [
+  "export const Default = { play: async () => { vi.useFakeTimers(); await new Promise((resolve) => setTimeout(resolve, 1)); } };",
+  "export const Default = { play: async () => { jest.useFakeTimers(); await new Promise((resolve) => setTimeout(resolve, 1)); } };",
+  "export const Default = { play: async () => { await expect(canvas.getByText('Ready')).toBeVisible(); } };",
+  "export const Default = { render: () => { Bun.sleepSync(10); return null; } };",
+  "export const Default = { play: async () => { serve(async () => { await scheduler.wait(10); return new Response(); }); } };",
+];
+
+test.each(
+  lintBatch(
+    storySleeps,
+    false,
+    "testing",
+    configuration(),
+    "Button.stories.tsx",
+  ),
+)("rejects a fixed sleep in a Storybook play function: %s", (_, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("landmines(no-fixed-sleep)");
+  expect(result.output).toContain("Replace this fixed sleep with a signal");
+});
+
+test.each(
+  lintBatch(
+    storySignals,
+    false,
+    "testing",
+    configuration(),
+    "Button.stories.tsx",
+  ),
+)("allows non-play code and signals in stories: %s", (_, result) => {
+  expect(result.status).toBe(0);
+});
+
+test("keeps Jest fake clocks local to their tests", () => {
+  const result = lint(
+    mixedTimers.replaceAll("vi.", "jest."),
+    false,
+    "testing",
+    configuration(),
+    "fixture.test.ts",
+  );
+
+  expect(result.status).toBe(1);
+  expect(
+    result.output.match(/Replace this fixed sleep with a signal/gu),
+  ).toHaveLength(1);
+});
+
+test.each(["vi", "jest"])(
+  "keeps %s fake clocks local to their Storybook play functions",
+  (framework) => {
+    const result = lint(
+      `export const Fake = { play: async () => { ${framework}.useFakeTimers(); await new Promise((resolve) => setTimeout(resolve, 1)); } }; export const Real = { play: async () => { await new Promise((resolve) => setTimeout(resolve, 1)); } };`,
+      false,
+      "testing",
+      configuration(),
+      "Button.stories.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/Replace this fixed sleep with a signal/gu),
+    ).toHaveLength(1);
+  },
+);
