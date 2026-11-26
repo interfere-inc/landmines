@@ -35,11 +35,11 @@ function lint(filename: string, repository = false) {
       categories: { correctness: "off" },
       jsPlugins: [
         {
-          name: "landmines-structure",
-          specifier: join(root, "packages/landmines/src/plugins/structure.ts"),
+          name: "landmines",
+          specifier: join(root, "packages/landmines/src/plugin.ts"),
         },
       ],
-      rules: { "landmines-structure/test-file-names": "error" },
+      rules: { "landmines/test-file-names": "error" },
     }),
   );
 
@@ -112,5 +112,5 @@ test("enforces the rule through the repository configuration", () => {
   const result = lint("src/admission.spec.ts", true);
 
   expect(result.status).toBe(1);
-  expect(result.stdout).toContain("landmines-structure(test-file-names)");
+  expect(result.stdout).toContain("landmines(test-file-names)");
 });
