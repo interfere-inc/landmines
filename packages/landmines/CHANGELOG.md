@@ -1,5 +1,21 @@
 # @interfere/landmines
 
+## 0.3.2
+
+### Patch Changes
+
+- [#67](https://github.com/interfere-inc/landmines/pull/67) [`7bf9fe0`](https://github.com/interfere-inc/landmines/commit/7bf9fe0f1168674487be3743c4d2818324869b3b) Thanks [@Abhishek-B-R](https://github.com/Abhishek-B-R)! - Report per-byte hex encoding written as a `for`, `for...of` or `while` loop, or as a `reduce` callback, not only inside `map` and `Array.from`.
+
+- [#62](https://github.com/interfere-inc/landmines/pull/62) [`7332482`](https://github.com/interfere-inc/landmines/commit/7332482789149b0d571743d2d8507de3a5ac6632) Thanks [@vanshb03](https://github.com/vanshb03)! - Report `++` and `--` on a property of an imported binding.
+
+- [#69](https://github.com/interfere-inc/landmines/pull/69) [`9666c8e`](https://github.com/interfere-inc/landmines/commit/9666c8e7349b5ac325bc08cb3bb3a2a7ac0c516c) Thanks [@voiys](https://github.com/voiys)! - Report `Bun.sleepSync` calls in tests and hooks, and check Storybook `play` functions in `*.stories.*` files in `no-fixed-sleep`.
+
+- [#64](https://github.com/interfere-inc/landmines/pull/64) [`4c385fe`](https://github.com/interfere-inc/landmines/commit/4c385fedc1bc4d657a9db84d8c482c261d456410) Thanks [@vanshb03](https://github.com/vanshb03)! - Stop reporting a container and a query that sit in opposite branches of a ternary.
+
+- [#61](https://github.com/interfere-inc/landmines/pull/61) [`a022868`](https://github.com/interfere-inc/landmines/commit/a022868ef744845be8ab0ec9d2cd9ce9e6ea0668) Thanks [@mccalpink](https://github.com/mccalpink)! - Fix `declared-test-inputs` crashing with `EISDIR` when a package contains a directory named like a source file, such as a Next.js route segment `app/demo/embed.js/route.ts`. The package source scan now skips directories and reads regular files only.
+
+- [#68](https://github.com/interfere-inc/landmines/pull/68) [`865ba83`](https://github.com/interfere-inc/landmines/commit/865ba830def002cc48344557560d7930b6cbdb44) Thanks [@skve](https://github.com/skve)! - Stop `max-exports-per-module` counting the Durable Object, Workflow and entrypoint classes a Cloudflare Worker's wrangler `main` exports because its wrangler config binds them.
+
 ## 0.3.1
 
 ### Patch Changes
