@@ -4,6 +4,7 @@ import { lint } from "./rule.test-utils";
 
 test.each([
   "function count(): number { return 1; }",
+  "function count(obj: { count: number }): number { return obj.count; }",
   "const count = function (): number { return 1; };",
   "const count = (): number => 1;",
   "const count = (): number => { return 1; };",
@@ -13,6 +14,8 @@ test.each([
   "class Counter { count(): number { return 1; } }",
   "class Counter { get count(): number { return 1; } }",
   "export default function count(): number { return 1; }",
+  "const items = [1].map((n): number => n + 1);",
+  "Schema.suspend((value: number): number => value);",
 ])("reports implemented return annotations without autofixing: %s", (code) => {
   const result = lint(code, true, "types");
 
@@ -41,6 +44,14 @@ test.each([
   "interface Counter { count(): number; }",
   "type Counter = () => number;",
   "class Counter { constructor() {} }",
+  "function fact(n: number): number { return n <= 1 ? 1 : n * fact(n - 1); }",
+  "const fact = (n: number): number => (n <= 1 ? 1 : n * fact(n - 1));",
+  "const walk = Effect.fn('walk')(function* (n: number): Effect.fn.Return<number> { if (n <= 0) return 0; return 1 + (yield* walk(n - 1)); });",
+  "class Walker { walk(n: number): number { return n <= 0 ? 0 : 1 + this.walk(n - 1); } }",
+  "class Walker { static walk(n: number): number { return n <= 0 ? 0 : 1 + Walker.walk(n - 1); } }",
+  "const Node = Schema.Struct({ children: Schema.Array(Schema.suspend((): Schema.Codec<Node> => Node)) });",
+  "class Category extends Schema.Class<Category>('Category')({ children: Schema.Array(Schema.suspend((): Schema.Codec<Category> => Category)) }) {}",
+  "const Node = z.object({ children: z.array(z.lazy((): z.ZodType<Node> => Node)) });",
 ])("allows inferred returns and type-only signatures: %s", (code) => {
   expect(lint(code, false, "types").status).toBe(0);
 });
