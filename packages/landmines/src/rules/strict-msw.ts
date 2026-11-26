@@ -25,26 +25,62 @@ function variableOf(source: SourceCode, node: ESTree.Node, name: string) {
 }
 
 function mswFactory(source: SourceCode, node: ESTree.Node | null | undefined) {
-  if (node?.type !== "CallExpression" || node.callee.type !== "Identifier") {
+  if (node?.type !== "CallExpression") {
+    return null;
+  }
+
+  const { callee } = node;
+  let identifier = callee.type === "Identifier" ? callee : null;
+
+  if (
+    callee.type === "MemberExpression" &&
+    callee.object.type === "Identifier"
+  ) {
+    identifier = callee.object;
+  }
+
+  if (!identifier) {
     return null;
   }
 
   for (const { node: definition, parent } of variableOf(
     source,
-    node.callee,
-    node.callee.name,
+    identifier,
+    identifier.name,
   )?.defs ?? []) {
     if (
-      definition.type === "ImportSpecifier" &&
-      parent?.type === "ImportDeclaration" &&
-      /^msw(?:\/|$)/u.test(parent.source.value)
+      parent?.type !== "ImportDeclaration" ||
+      !/^msw(?:\/|$)/u.test(parent.source.value)
     ) {
+      continue;
+    }
+
+    if (callee.type === "Identifier" && definition.type === "ImportSpecifier") {
       const name =
         definition.imported.type === "Identifier"
           ? definition.imported.name
           : definition.imported.value;
 
       return starters.has(name) ? name : null;
+    }
+
+    if (
+      callee.type === "MemberExpression" &&
+      definition.type === "ImportNamespaceSpecifier"
+    ) {
+      let name =
+        !callee.computed && callee.property.type === "Identifier"
+          ? callee.property.name
+          : null;
+
+      if (
+        callee.property.type === "Literal" &&
+        typeof callee.property.value === "string"
+      ) {
+        name = callee.property.value;
+      }
+
+      return name !== null && starters.has(name) ? name : null;
     }
   }
 
@@ -129,17 +165,30 @@ function namedHandler(source: SourceCode, node: ESTree.Node) {
   );
 }
 
-function strict(source: SourceCode, node: ESTree.Node | undefined) {
+function strictValue(source: SourceCode, node: ESTree.Node) {
   return (
-    node?.type === "ObjectExpression" &&
-    node.properties.some(
+    (node.type === "Literal" && node.value === "error") ||
+    inlineHandler(node) ||
+    namedHandler(source, node)
+  );
+}
+
+function strict(source: SourceCode, node: ESTree.Node | undefined) {
+  if (node?.type !== "ObjectExpression") {
+    return false;
+  }
+
+  const unhandled = node.properties.filter(
+    (property) =>
+      property.type === "Property" &&
+      unhandledOptions.has(keyName(property) ?? ""),
+  );
+
+  return (
+    unhandled.length > 0 &&
+    unhandled.every(
       (property) =>
-        property.type === "Property" &&
-        unhandledOptions.has(keyName(property) ?? "") &&
-        ((property.value.type === "Literal" &&
-          property.value.value === "error") ||
-          inlineHandler(property.value) ||
-          namedHandler(source, property.value)),
+        property.type === "Property" && strictValue(source, property.value),
     )
   );
 }

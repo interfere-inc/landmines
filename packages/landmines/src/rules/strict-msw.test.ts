@@ -20,14 +20,12 @@ function createConfig(
       categories: { correctness: "off" },
       jsPlugins: [
         {
-          name: "landmines-testing",
-          specifier: fileURLToPath(
-            new URL("../plugins/testing.ts", import.meta.url),
-          ),
+          name: "landmines",
+          specifier: fileURLToPath(new URL("../plugin.ts", import.meta.url)),
         },
       ],
       rules: {
-        "landmines-testing/strict-msw": options ? ["error", options] : "error",
+        "landmines/strict-msw": options ? ["error", options] : "error",
       },
     }),
   );
@@ -65,6 +63,9 @@ const lenient = [
   `${server}import { handle } from "./handle";\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
   `${server}const network = setupServer(); network.listen({ onUnhandledFrame: missing });`,
   `${server}export function start(handle) { setupServer().listen({ onUnhandledFrame: handle }); }`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledFrame: "error", onUnhandledRequest: "bypass" });`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledRequest: "bypass", onUnhandledFrame: "error" });`,
+  `${worker}const network = setupWorker(); await network.start({ onUnhandledRequest: "error", onUnhandledFrame: "warn" });`,
 ];
 
 const strict = [
@@ -85,6 +86,7 @@ const strict = [
   `${server}const network = setupServer(); network.listen({ onUnhandledFrame({ defaults }) { defaults.error(); } });`,
   `${server}function handle(request, print) { print.error(); }\nconst network = setupServer(); network.listen({ onUnhandledRequest: handle });`,
   `${server}const handle = ({ defaults }) => { defaults.error(); };\nconst network = setupServer(); network.listen({ onUnhandledFrame: handle });`,
+  `${server}const network = setupServer(); network.listen({ onUnhandledFrame: "error", onUnhandledRequest: "error" });`,
 ];
 
 test.each(lintBatch(lenient, false, "testing", config))(
@@ -129,4 +131,48 @@ test.each(
   expect(result.status).toBe(1);
 
   expect(result.output).toContain("lower its strict-msw allowlist entry");
+});
+
+const namespaceServer = 'import * as msw from "msw/node";\n';
+const namespaceWorker = 'import * as msw from "msw/browser";\n';
+
+test.each(
+  lintBatch(
+    [
+      `${namespaceServer}msw.setupServer().listen();`,
+      `${namespaceServer}const network = msw.setupServer(); network.listen({ onUnhandledRequest: "bypass" });`,
+      `${namespaceServer}let network; network = msw.setupServer(); network.listen();`,
+      `${namespaceServer}msw["setupServer"]().listen({ onUnhandledFrame: "warn" });`,
+      `${namespaceServer}const network = msw.setupServer(); export function start() { network.listen(); }`,
+      `${namespaceWorker}await msw.setupWorker().start();`,
+      `${namespaceWorker}const network = msw.setupWorker(); await network.start({ onUnhandledRequest: "bypass" });`,
+      `${namespaceWorker}await msw["setupWorker"]().start({ onUnhandledFrame: "warn" });`,
+    ],
+    false,
+    "testing",
+    config,
+  ),
+)("rejects lenient namespace-import MSW starts: %s", (_code, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("strict-msw");
+});
+
+test.each(
+  lintBatch(
+    [
+      `${namespaceServer}msw.setupServer().listen({ onUnhandledRequest: "error" });`,
+      `${namespaceServer}msw["setupServer"]().listen({ onUnhandledFrame: "error" });`,
+      `${namespaceWorker}await msw.setupWorker().start({ onUnhandledRequest: "error" });`,
+      `${namespaceWorker}await msw["setupWorker"]().start({ onUnhandledFrame: "error" });`,
+      `${namespaceServer}export function start(msw) { msw.setupServer().listen(); }`,
+      `${namespaceServer}{ const msw = helper; msw.setupServer().listen(); }`,
+      'import * as msw from "./test-helper";\nmsw.setupServer().listen();',
+      `${namespaceServer}msw[factory]().listen();`,
+    ],
+    false,
+    "testing",
+    config,
+  ),
+)("accepts strict or unrelated namespace starts: %s", (_code, result) => {
+  expect(result.status).toBe(0);
 });

@@ -45,6 +45,8 @@ function unrestrictedSourceExports(
   return [...violations];
 }
 
+const claimed = new Map<string, string>();
+
 export const packageExports = defineRule({
   meta: {
     type: "problem",
@@ -63,6 +65,14 @@ export const packageExports = defineRule({
     const path = join(directory, "package.json");
 
     if (!existsSync(path)) {
+      return {};
+    }
+
+    const owner = claimed.get(path) ?? context.physicalFilename;
+
+    claimed.set(path, owner);
+
+    if (owner !== context.physicalFilename) {
       return {};
     }
 

@@ -3,7 +3,7 @@ import type { UserConfig } from "tsdown";
 export default {
   clean: true,
   dts: { sourcemap: false },
-  entry: ["src/plugins/*.ts", "!**/*.test.ts"],
+  entry: ["src/plugin.ts"],
   failOnWarn: "ci-only",
   format: ["esm"],
   logLevel: "warn",
