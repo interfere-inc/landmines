@@ -17,14 +17,12 @@ function createConfig(options?: { publicApi?: string[]; allow?: string[] }) {
       categories: { correctness: "off" },
       jsPlugins: [
         {
-          name: "landmines-style",
-          specifier: fileURLToPath(
-            new URL("../plugins/style.ts", import.meta.url),
-          ),
+          name: "landmines",
+          specifier: fileURLToPath(new URL("../plugin.ts", import.meta.url)),
         },
       ],
       rules: {
-        "landmines-style/no-comments": options ? ["error", options] : "error",
+        "landmines/no-comments": options ? ["error", options] : "error",
       },
     }),
   );
@@ -57,6 +55,7 @@ const functional = [
   "/* @__NO_SIDE_EFFECTS__ */\nexport function count() { return 1; }",
   "import(/* webpackChunkName: 'sdk' */ './sdk');",
   "import(/* @vite-ignore */ path);",
+  "// @boundaries-ignore k6 runtime module\nimport { check } from 'k6';",
   "/// <reference types='node' />\nexport const count = 1;",
   "/* @jsxImportSource react */\nexport const view = <div />;",
   "// SPDX-License-Identifier: MIT\nexport const count = 1;",
@@ -272,5 +271,64 @@ test.each(
   ),
 )("allows SAFETY: when allow lists only it: %s", (code, result) => {
   expect(result.status).toBe(0);
+  expect(result.code).toBe(code);
+});
+
+test.each(
+  lintBatch(
+    [
+      "/** Base options. */\ninterface Base { /** @deprecated Use attempts. */ retries: number; }\nexport interface Options extends Base {}",
+      "interface Middle extends Base {}\n/** Base options. */\ninterface Base { /** Retry limit. */ retries: number; }\nexport interface Options extends Middle {}",
+      "/** Values accepted by the contract. */\ninterface Base<T> { /** Current value. */ value: T; }\nexport interface Options extends Base<string> {}",
+      "/** Base options. */\ntype Base = { /** Retry limit. */ retries: number; };\nexport interface Options extends Base {}",
+      "interface Left { /** Left value. */ left: number; }\ninterface Right { /** Right value. */ right: number; }\nexport interface Options extends Left, Right {}",
+      "/** Counter contract. */\ninterface Contract { /** Current count. */ count: number; }\nexport class Counter implements Contract { count = 0; }",
+      "/** Generic value contract. */\ninterface Contract<T> { /** Current value. */ value: T; }\nexport class Value implements Contract<string> { value = ''; }",
+      "/** Counter contract. */\ntype Contract = { /** Current count. */ count: number; };\nclass Counter implements Contract { count = 0; }\nexport { Counter };",
+    ],
+    true,
+    "style",
+    config,
+    publicFile,
+  ),
+)("preserves public heritage contract documentation: %s", (code, result) => {
+  expect(result.status).toBe(0);
+  expect(result.code).toBe(code);
+});
+
+test.each(
+  lintBatch(
+    [
+      "interface Base { /** Internal value. */ value: number; }\ninterface Internal extends Base {}\nexport const value = 1;",
+      "interface Base { /** Internal value. */ value: number; }\nexport function create() { class Internal implements Base { value = 1; } return new Internal().value; }",
+      "interface Base { /** Unused outer value. */ value: number; }\nexport interface Options<Base> { value: Base; }",
+      "interface Base { /** Internal value. */ value: number; }\nexport class Value { private value: Base = { value: 1 }; }",
+      "interface Base { /** Unused outer value. */ value: number; }\nexport class Value<Base> { value: Base; constructor(value: Base) { this.value = value; } }",
+    ],
+    true,
+    "style",
+    config,
+    publicFile,
+  ),
+)("keeps internal contracts outside public heritage: %s", (code, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Remove this comment");
+  expect(result.code).toBe(code);
+});
+
+test.each(
+  lintBatch(
+    [
+      "/** Base options. */\ninterface Base { /** @deprecated Use attempts. */ retries: number; }\nexport interface Options extends Base {}",
+      "/** Counter contract. */\ninterface Contract { /** Current count. */ count: number; }\nexport class Counter implements Contract { count = 0; }",
+    ],
+    true,
+    "style",
+    config,
+    "packages/internal/sdk/src/subject.tsx",
+  ),
+)("does not expose heritage outside publicApi: %s", (code, result) => {
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Remove this comment");
   expect(result.code).toBe(code);
 });

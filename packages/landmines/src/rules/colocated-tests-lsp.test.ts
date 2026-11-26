@@ -29,11 +29,11 @@ beforeEach(() => {
       categories: { correctness: "off" },
       jsPlugins: [
         {
-          name: "landmines-structure",
-          specifier: join(root, "packages/landmines/src/plugins/structure.ts"),
+          name: "landmines",
+          specifier: join(root, "packages/landmines/src/plugin.ts"),
         },
       ],
-      rules: { "landmines-structure/colocated-tests": "error" },
+      rules: { "landmines/colocated-tests": "error" },
     }),
   );
 });

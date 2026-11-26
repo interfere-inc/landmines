@@ -1,5 +1,5 @@
 import { defineRule } from "@oxlint/plugins";
-import type { ESTree } from "@oxlint/plugins";
+import type { ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
 
 import { allowlistSchema, reportAllowed } from "../lib/allowlist.ts";
 
@@ -19,14 +19,22 @@ function keyName(property: ESTree.Node) {
   return property.key.type === "Literal" ? String(property.key.value) : null;
 }
 
-function rootName(initial: ESTree.Node) {
+function rootIdentifier(initial: ESTree.Node) {
   let node = initial;
 
-  while (node.type === "MemberExpression" || node.type === "CallExpression") {
-    node = node.type === "MemberExpression" ? node.object : node.callee;
+  while (
+    node.type === "MemberExpression" ||
+    node.type === "CallExpression" ||
+    node.type === "TaggedTemplateExpression"
+  ) {
+    if (node.type === "TaggedTemplateExpression") {
+      node = node.tag;
+    } else {
+      node = node.type === "MemberExpression" ? node.object : node.callee;
+    }
   }
 
-  return node.type === "Identifier" ? node.name : null;
+  return node.type === "Identifier" ? node : null;
 }
 
 function memberName(node: ESTree.Node) {
@@ -37,28 +45,75 @@ function memberName(node: ESTree.Node) {
     : null;
 }
 
-function testCall(node: ESTree.CallExpression) {
-  const name = rootName(node.callee);
-  const member = memberName(node.callee);
+function variableOf(source: SourceCode, node: ESTree.Node, name: string) {
+  for (
+    let scope: Scope | null = source.getScope(node);
+    scope !== null;
+    scope = scope.upper
+  ) {
+    const variable = scope.set.get(name);
+
+    if (variable) {
+      return variable;
+    }
+  }
+
+  return null;
+}
+
+const testBinding: (
+  source: SourceCode,
+  identifier: ESTree.Node & { name: string },
+  seen?: Set<Variable>,
+) => boolean = (source, identifier, seen = new Set<Variable>()) => {
+  const variable = variableOf(source, identifier, identifier.name);
+
+  if (variable === null || variable.defs.length === 0) {
+    return true;
+  }
+
+  if (seen.has(variable)) {
+    return false;
+  }
+
+  seen.add(variable);
+
+  return variable.defs.every(({ type, node }) => {
+    if (type === "ImportBinding") {
+      return true;
+    }
+
+    if (
+      type !== "Variable" ||
+      node.type !== "VariableDeclarator" ||
+      node.init === null
+    ) {
+      return false;
+    }
+
+    const root = rootIdentifier(node.init);
+
+    return root !== null && testBinding(source, root, seen);
+  });
+};
+
+function playwrightImport(source: SourceCode, identifier: ESTree.Node) {
+  if (identifier.type !== "Identifier") {
+    return false;
+  }
 
   return (
-    name !== null &&
-    testFunctions.has(name) &&
-    member !== "each" &&
-    member !== "for" &&
-    member !== "extend" &&
-    member !== "scoped" &&
-    member !== "override"
+    variableOf(source, identifier, identifier.name)?.defs.some(
+      ({ type, parent }) =>
+        type === "ImportBinding" &&
+        parent?.type === "ImportDeclaration" &&
+        parent.source.value === "@playwright/test",
+    ) ?? false
   );
 }
 
-function configCall(node: ESTree.CallExpression) {
-  return (
-    node.callee.type === "MemberExpression" &&
-    node.callee.object.type === "Identifier" &&
-    node.callee.object.name === "vi" &&
-    memberName(node.callee) === "setConfig"
-  );
+function zero(node: ESTree.Node | undefined) {
+  return node?.type === "Literal" && node.value === 0;
 }
 
 export const noFlakeMasking = defineRule({
@@ -79,7 +134,25 @@ export const noFlakeMasking = defineRule({
     },
   },
   create(context) {
+    const source = context.sourceCode;
     const timeouts: ESTree.Node[] = [];
+
+    function testCall(node: ESTree.CallExpression) {
+      const root = rootIdentifier(node.callee);
+      const member = memberName(node.callee);
+
+      return (
+        root !== null &&
+        testFunctions.has(root.name) &&
+        member !== "each" &&
+        member !== "for" &&
+        member !== "extend" &&
+        member !== "scoped" &&
+        member !== "override" &&
+        member !== "configure" &&
+        testBinding(source, root)
+      );
+    }
 
     function inspect(node: ESTree.Node | undefined, keys: ReadonlySet<string>) {
       if (node?.type !== "ObjectExpression") {
@@ -97,10 +170,80 @@ export const noFlakeMasking = defineRule({
       }
     }
 
+    function inspectRetries(node: ESTree.Node | undefined | null) {
+      if (node?.type !== "ObjectExpression") {
+        return;
+      }
+
+      for (const property of node.properties) {
+        if (property.type !== "Property") {
+          continue;
+        }
+
+        const key = keyName(property);
+
+        if (key === "retries" && !zero(property.value)) {
+          context.report({ node: property, messageId: "retry" });
+        } else if (
+          key === "projects" &&
+          property.value.type === "ArrayExpression"
+        ) {
+          for (const project of property.value.elements) {
+            inspectRetries(project);
+          }
+        }
+      }
+    }
+
     return {
       CallExpression(node) {
-        if (configCall(node)) {
+        const { callee } = node;
+        const member = memberName(callee);
+
+        if (
+          callee.type === "MemberExpression" &&
+          callee.object.type === "Identifier" &&
+          callee.object.name === "vi" &&
+          member === "setConfig"
+        ) {
           inspect(node.arguments[0], configTimeouts);
+
+          return;
+        }
+
+        if (
+          callee.type === "MemberExpression" &&
+          callee.object.type === "Identifier" &&
+          callee.object.name === "jest" &&
+          member === "retryTimes"
+        ) {
+          if (!zero(node.arguments[0])) {
+            context.report({ node, messageId: "retry" });
+          }
+
+          return;
+        }
+
+        if (
+          callee.type === "Identifier" &&
+          callee.name === "defineConfig" &&
+          playwrightImport(source, callee)
+        ) {
+          inspectRetries(node.arguments[0]);
+
+          return;
+        }
+
+        if (
+          member === "configure" &&
+          callee.type === "MemberExpression" &&
+          memberName(callee.object) === "describe"
+        ) {
+          const root = rootIdentifier(callee);
+
+          if (root !== null && testBinding(source, root)) {
+            inspectRetries(node.arguments[0]);
+          }
 
           return;
         }
