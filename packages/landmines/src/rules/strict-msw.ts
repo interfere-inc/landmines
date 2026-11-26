@@ -25,26 +25,62 @@ function variableOf(source: SourceCode, node: ESTree.Node, name: string) {
 }
 
 function mswFactory(source: SourceCode, node: ESTree.Node | null | undefined) {
-  if (node?.type !== "CallExpression" || node.callee.type !== "Identifier") {
+  if (node?.type !== "CallExpression") {
+    return null;
+  }
+
+  const { callee } = node;
+  let identifier = callee.type === "Identifier" ? callee : null;
+
+  if (
+    callee.type === "MemberExpression" &&
+    callee.object.type === "Identifier"
+  ) {
+    identifier = callee.object;
+  }
+
+  if (!identifier) {
     return null;
   }
 
   for (const { node: definition, parent } of variableOf(
     source,
-    node.callee,
-    node.callee.name,
+    identifier,
+    identifier.name,
   )?.defs ?? []) {
     if (
-      definition.type === "ImportSpecifier" &&
-      parent?.type === "ImportDeclaration" &&
-      /^msw(?:\/|$)/u.test(parent.source.value)
+      parent?.type !== "ImportDeclaration" ||
+      !/^msw(?:\/|$)/u.test(parent.source.value)
     ) {
+      continue;
+    }
+
+    if (callee.type === "Identifier" && definition.type === "ImportSpecifier") {
       const name =
         definition.imported.type === "Identifier"
           ? definition.imported.name
           : definition.imported.value;
 
       return starters.has(name) ? name : null;
+    }
+
+    if (
+      callee.type === "MemberExpression" &&
+      definition.type === "ImportNamespaceSpecifier"
+    ) {
+      let name =
+        !callee.computed && callee.property.type === "Identifier"
+          ? callee.property.name
+          : null;
+
+      if (
+        callee.property.type === "Literal" &&
+        typeof callee.property.value === "string"
+      ) {
+        name = callee.property.value;
+      }
+
+      return name !== null && starters.has(name) ? name : null;
     }
   }
 
@@ -126,20 +162,34 @@ function namedHandler(source: SourceCode, node: ESTree.Node) {
   );
 }
 
+function strictValue(source: SourceCode, node: ESTree.Node) {
+  return (
+    (node.type === "Literal" && node.value === "error") ||
+    inlineHandler(node) ||
+    namedHandler(source, node)
+  );
+}
+
+function invalidateOptions(options: Map<string, boolean>) {
+  for (const name of options.keys()) {
+    options.set(name, false);
+  }
+}
+
 function applyOptions(
   source: SourceCode,
   node: ESTree.Node | undefined,
-  strictOptions: Set<string>,
+  options: Map<string, boolean>,
 ) {
   if (node?.type !== "ObjectExpression") {
-    strictOptions.clear();
+    invalidateOptions(options);
 
     return;
   }
 
   for (const property of node.properties) {
     if (property.type === "SpreadElement") {
-      applyOptions(source, property.argument, strictOptions);
+      applyOptions(source, property.argument, options);
 
       continue;
     }
@@ -147,29 +197,22 @@ function applyOptions(
     const name = keyName(property);
 
     if (name === null) {
-      strictOptions.clear();
+      invalidateOptions(options);
     } else if (unhandledOptions.has(name)) {
-      if (
-        property.kind === "init" &&
-        ((property.value.type === "Literal" &&
-          property.value.value === "error") ||
-          inlineHandler(property.value) ||
-          namedHandler(source, property.value))
-      ) {
-        strictOptions.add(name);
-      } else {
-        strictOptions.delete(name);
-      }
+      options.set(
+        name,
+        property.kind === "init" && strictValue(source, property.value),
+      );
     }
   }
 }
 
 function strict(source: SourceCode, node: ESTree.Node | undefined) {
-  const strictOptions = new Set<string>();
+  const options = new Map<string, boolean>();
 
-  applyOptions(source, node, strictOptions);
+  applyOptions(source, node, options);
 
-  return strictOptions.size > 0;
+  return options.size > 0 && [...options.values()].every(Boolean);
 }
 
 export const strictMsw = defineRule({
