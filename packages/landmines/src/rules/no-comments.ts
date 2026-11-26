@@ -10,6 +10,7 @@ const directives = [
   /^(?:@|#)__(?:PURE|NO_SIDE_EFFECTS|INLINE|NOINLINE)__$/u,
   /^@vite-ignore$/u,
   /^@(?:vitest|jest)-environment(?:-options)?\s+\S/u,
+  /^@boundaries-ignore(?:\s|$)/u,
   /^webpack(?:ChunkName|Mode|Prefetch|Preload|Ignore|Include|Exclude|Exports|FetchPriority):/u,
   /^(?:@jsx|@jsxFrag|@jsxImportSource|@jsxRuntime)\s+\S/u,
   /^\/\s*<(?:reference|amd-module|amd-dependency)\s/u,
@@ -91,7 +92,11 @@ export const noComments = defineRule({
     const documented = new Set<number>();
     const declarations = new Set<ESTree.Node>();
     const members: ESTree.Node[] = [];
-    const references: ESTree.TSTypeReference[] = [];
+    const references: (
+      | ESTree.TSTypeReference
+      | ESTree.TSInterfaceHeritage
+      | ESTree.TSClassImplements
+    )[] = [];
 
     function document(node: ESTree.Node) {
       const comments = source.getCommentsBefore(node);
@@ -168,6 +173,12 @@ export const noComments = defineRule({
       TSTypeReference(node) {
         references.push(node);
       },
+      TSInterfaceHeritage(node) {
+        references.push(node);
+      },
+      TSClassImplements(node) {
+        references.push(node);
+      },
       "Program:exit"(program) {
         if (publicFile) {
           const exportedNames = new Set<string>();
@@ -229,17 +240,19 @@ export const noComments = defineRule({
             previousSize = declarations.size;
 
             for (const reference of references) {
-              if (
-                reference.typeName.type !== "Identifier" ||
-                !isExposed(reference)
-              ) {
+              const name =
+                reference.type === "TSTypeReference"
+                  ? reference.typeName
+                  : reference.expression;
+
+              if (name.type !== "Identifier" || !isExposed(reference)) {
                 continue;
               }
 
               let scope: Scope | null = source.getScope(reference);
 
               while (scope) {
-                const variable = scope.set.get(reference.typeName.name);
+                const variable = scope.set.get(name.name);
 
                 if (variable) {
                   for (const definition of variable.defs) {

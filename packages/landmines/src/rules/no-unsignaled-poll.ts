@@ -2,6 +2,8 @@ import { defineRule } from "@oxlint/plugins";
 import type { ESTree } from "@oxlint/plugins";
 
 import { allowlistSchema, reportAllowed } from "../lib/allowlist.ts";
+import { containsNode } from "../lib/ast-search.ts";
+import { isTestSupportFile } from "../lib/test-file.ts";
 
 const spyMatchers =
   /^(?:toHaveBeenCalled|toHaveBeenCalledOnce|toHaveBeenCalledTimes|toHaveBeenCalledWith|toHaveBeenCalledExactlyOnceWith|toHaveBeenLastCalledWith|toHaveBeenNthCalledWith|toHaveReturned|toHaveReturnedTimes|toHaveReturnedWith|toHaveLastReturnedWith|toHaveNthReturnedWith|toHaveResolved|toHaveResolvedTimes|toHaveResolvedWith|toHaveLastResolvedWith|toHaveNthResolvedWith)$/u;
@@ -129,7 +131,11 @@ function assertsRecorder(node: ESTree.Node) {
 }
 
 function pollsLength(node: ESTree.CallExpression, value: ESTree.Node) {
-  const { parent } = node;
+  const parent =
+    node.parent.type === "MemberExpression" &&
+    propertyName(node.parent) === "not"
+      ? node.parent.parent
+      : node.parent;
   const names = path(value);
   const matcher =
     parent.type === "MemberExpression" ? (propertyName(parent) ?? "") : "";
@@ -141,28 +147,149 @@ function pollsLength(node: ESTree.CallExpression, value: ESTree.Node) {
   );
 }
 
+function conditionReadsRecorder(node: ESTree.Node) {
+  const pending: ESTree.Node[] = [node];
+
+  while (pending.length > 0) {
+    const current = pending.pop();
+
+    if (current === undefined) {
+      break;
+    }
+
+    if (readsRecorder(current)) {
+      return true;
+    }
+
+    if (
+      current.type === "BinaryExpression" ||
+      current.type === "LogicalExpression"
+    ) {
+      pending.push(current.left, current.right);
+    } else if (current.type === "UnaryExpression") {
+      pending.push(current.argument);
+    } else if (current.type === "SequenceExpression") {
+      pending.push(...current.expressions);
+    }
+  }
+
+  return false;
+}
+
+const clockCall = /^now(?:[A-Z_]|$)/u;
+
+type Loop =
+  | ESTree.WhileStatement
+  | ESTree.DoWhileStatement
+  | ESTree.ForStatement;
+
+function isFunction(node: ESTree.Node) {
+  return (
+    node.type === "ArrowFunctionExpression" ||
+    node.type === "FunctionExpression" ||
+    node.type === "FunctionDeclaration"
+  );
+}
+
+function enclosedBy(node: ESTree.Node, root: ESTree.Node) {
+  for (
+    let current: ESTree.Node | null = node.parent;
+    current && current !== root;
+    current = current.parent
+  ) {
+    if (isFunction(current)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function within(root: ESTree.Node, predicate: (node: ESTree.Node) => boolean) {
+  return containsNode(
+    root,
+    (node) => predicate(node) && enclosedBy(node, root),
+  );
+}
+
+function readsClock(node: ESTree.Node) {
+  if (node.type === "NewExpression") {
+    return (
+      node.callee.type === "Identifier" &&
+      node.callee.name === "Date" &&
+      node.arguments.length === 0
+    );
+  }
+
+  if (node.type !== "CallExpression") {
+    return false;
+  }
+
+  const { callee } = node;
+
+  if (callee.type === "Identifier") {
+    return clockCall.test(callee.name);
+  }
+
+  return callee.type === "MemberExpression" && propertyName(callee) === "now";
+}
+
+function checksDeadline(body: ESTree.Node) {
+  return within(
+    body,
+    (node) =>
+      (node.type === "IfStatement" || node.type === "ConditionalExpression") &&
+      within(node.test, readsClock),
+  );
+}
+
+function clockLoop(node: Loop) {
+  const clocked =
+    (node.test !== null && within(node.test, readsClock)) ||
+    checksDeadline(node.body);
+
+  return (
+    clocked && within(node.body, (child) => child.type === "AwaitExpression")
+  );
+}
+
 export const noUnsignaledPoll = defineRule({
   meta: {
     type: "problem",
     schema: allowlistSchema,
     docs: {
       description:
-        "Disallow expect.poll and vi.waitFor on request recorders and spy state, which race a deadline instead of awaiting a signal.",
+        "Disallow expect.poll, vi.waitFor and vi.waitUntil on request recorders and spy state, which race a deadline instead of awaiting a signal.",
     },
     messages: {
       poll: "Await a signal instead of polling a request recorder or spy: resolve a Promise.withResolvers() deferred from the handler or callback that records it, then await its promise, or await the operation's own completion. A deadline-bound poll on a counter fails under CPU load, and a longer timeout only hides that.",
+      clock:
+        "Await a signal instead of looping until a clock deadline: resolve a Promise.withResolvers() deferred where the awaited state changes, subscribe to the event that announces it, or await the operation's own completion. A loop that retries until a deadline passes guesses how long real work takes and fails under CPU load.",
       stale:
         "This file now has {{count}} unsignaled polls; lower its no-unsignaled-poll allowlist entry for {{path}} in .oxlintrc.jsonc to {{count}}, or remove the entry at 0.",
     },
   },
   create(context) {
     const violations: ESTree.Node[] = [];
+    const loops = new Set<ESTree.Node>();
+    const support = isTestSupportFile(context.physicalFilename);
+
+    function loop(node: Loop) {
+      if (support && clockLoop(node)) {
+        violations.push(node);
+        loops.add(node);
+      }
+    }
 
     return {
+      WhileStatement: loop,
+      DoWhileStatement: loop,
+      ForStatement: loop,
       CallExpression(node) {
         const poll = isCall(node.callee, "expect", "poll");
+        const waitUntil = isCall(node.callee, "vi", "waitUntil");
 
-        if (!poll && !isCall(node.callee, "vi", "waitFor")) {
+        if (!poll && !waitUntil && !isCall(node.callee, "vi", "waitFor")) {
           return;
         }
 
@@ -173,15 +300,31 @@ export const noUnsignaledPoll = defineRule({
           return;
         }
 
-        if (
-          readsRecorder(value) ||
-          (poll ? pollsLength(node, value) : assertsRecorder(value))
-        ) {
+        let unsignaled = readsRecorder(value);
+
+        if (!unsignaled) {
+          if (poll) {
+            unsignaled = pollsLength(node, value);
+          } else if (waitUntil) {
+            unsignaled = conditionReadsRecorder(value);
+          } else {
+            unsignaled = assertsRecorder(value);
+          }
+        }
+
+        if (unsignaled) {
           violations.push(node);
         }
       },
       "Program:exit"(program) {
-        reportAllowed(context, program, violations, "poll");
+        reportAllowed(
+          context,
+          program,
+          violations,
+          "poll",
+          undefined,
+          (node) => (loops.has(node) ? "clock" : "poll"),
+        );
       },
     };
   },

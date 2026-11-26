@@ -48,9 +48,7 @@ function lint(manifest: Manifest, repository = false, cwd = root) {
     [
       "--config",
       join(root, ".oxlintrc.jsonc"),
-      ...(repository
-        ? []
-        : ["-A", "all", "-D", "landmines-structure/package-exports"]),
+      ...(repository ? [] : ["-A", "all", "-D", "landmines/package-exports"]),
       "--threads",
       "1",
       filename,
@@ -82,7 +80,7 @@ test.each([
   });
 
   expect(result.status).toBe(1);
-  expect(result.stdout).toContain("landmines-structure(package-exports)");
+  expect(result.stdout).toContain("landmines(package-exports)");
   expect(result.stdout).toContain(target);
 });
 
@@ -114,7 +112,36 @@ test("enforces the rule through global configuration without local options", () 
   const result = lint({ exports: { "./*": "./src/*.ts" } }, true);
 
   expect(result.status).toBe(1);
-  expect(result.stdout).toContain("landmines-structure(package-exports)");
+  expect(result.stdout).toContain("landmines(package-exports)");
+});
+
+test("reports one manifest once however many of its files are linted", () => {
+  write("package.json", JSON.stringify({ exports: { "./*": "./src/*.ts" } }));
+
+  for (let index = 0; index < 20; index += 1) {
+    write(`src/module-${index}.ts`, "export {};\n");
+  }
+
+  const result = spawnSync(
+    join(root, "node_modules/.bin/oxlint"),
+    [
+      "--config",
+      join(root, ".oxlintrc.jsonc"),
+      "-A",
+      "all",
+      "-D",
+      "landmines/package-exports",
+      "--format",
+      "unix",
+      join(directory, "src"),
+    ],
+    { cwd: root, encoding: "utf8", timeout: 15_000 },
+  );
+
+  expect(result.stderr).toBe("");
+  expect(result.status).toBe(1);
+
+  expect(result.stdout.match(/landmines\(package-exports\)/gu)).toHaveLength(1);
 });
 
 test("finds the owning package when lint runs from a nested directory", () => {
