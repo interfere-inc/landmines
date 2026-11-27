@@ -1,5 +1,29 @@
 # @interfere/landmines
 
+## 0.4.0
+
+### Minor Changes
+
+- [#66](https://github.com/interfere-inc/landmines/pull/66) [`888d8aa`](https://github.com/interfere-inc/landmines/commit/888d8aac0d5bfa848b42a247f33138ffa5a083eb) Thanks [@shlomsh](https://github.com/shlomsh)! - `no-flake-masking` also reports Playwright's raised timeouts: `test.describe.configure({ timeout })`, `test.setTimeout`, `test.slow`, and the same calls on `testInfo` and `test.info()`. They count toward the existing `allow` entries.
+
+### Patch Changes
+
+- [#32](https://github.com/interfere-inc/landmines/pull/32) [`d437971`](https://github.com/interfere-inc/landmines/commit/d437971b59b9555a877829f9e943639120172f20) Thanks [@Afloat16](https://github.com/Afloat16)! - Resolve named polling imports from Vitest, Vite+ and Playwright while ignoring shadowed or unrelated bindings.
+
+- [#26](https://github.com/interfere-inc/landmines/pull/26) [`374c98f`](https://github.com/interfere-inc/landmines/commit/374c98f9516e418d8e2ab54909595e07bbeab75f) Thanks [@Afloat16](https://github.com/Afloat16)! - Report fixed sleep promises returned from test, hook, and run-now callbacks, including concise arrow functions.
+
+- [#28](https://github.com/interfere-inc/landmines/pull/28) [`2aeff9e`](https://github.com/interfere-inc/landmines/commit/2aeff9e7cedc6e73fc5dd4caabaf8291c2850d4c) Thanks [@Afloat16](https://github.com/Afloat16)! - Check effective MSW options after duplicate properties and object spreads so a later lenient setting cannot hide behind an earlier strict value.
+
+- [#63](https://github.com/interfere-inc/landmines/pull/63) [`a5f80f0`](https://github.com/interfere-inc/landmines/commit/a5f80f06a8f9657c8a488f5d1f482656d85faff8) Thanks [@vanshb03](https://github.com/vanshb03)! - Stop treating `import { type Foo }` as a warm import, since TypeScript erases it.
+
+- [#74](https://github.com/interfere-inc/landmines/pull/74) [`d340b45`](https://github.com/interfere-inc/landmines/commit/d340b45276b36b712632b82e8c9d76491044f64a) Thanks [@voiys](https://github.com/voiys)! - Allow explicit return types on self-recursive functions/methods and zero-argument `suspend`/`lazy` thunks (such as Effect `Schema.suspend` and Zod `z.lazy`), where TypeScript requires an explicit return annotation (`TS7022`/`TS7023`/`TS7024`).
+
+- [#35](https://github.com/interfere-inc/landmines/pull/35) [`fb131b5`](https://github.com/interfere-inc/landmines/commit/fb131b5db2f4f2e1225044c9d6c5f0358c734aef) Thanks [@Afloat16](https://github.com/Afloat16)! - Preserve Vitest and Jest environment directives and their options so no-comments does not ask users to remove comments that select a test file's runtime environment.
+
+- [#36](https://github.com/interfere-inc/landmines/pull/36) [`cb41ccd`](https://github.com/interfere-inc/landmines/commit/cb41ccdbb76da9f910a4ff8ab438fe21267a468f) Thanks [@Afloat16](https://github.com/Afloat16)! - Keep no-fixed-sleep active for real timer waits when another test or sibling suite uses fake timers. Preserve fake timer setup in the current test and its shared setup hooks.
+
+- [#29](https://github.com/interfere-inc/landmines/pull/29) [`b7eff44`](https://github.com/interfere-inc/landmines/commit/b7eff4482cfb8cc38149777559326b85aaeccadd) Thanks [@Afloat16](https://github.com/Afloat16)! - Trace CommonJS requires and TypeScript import-equals declarations when identifying a test's implementation owner, including source-local companions and conditional package exports. Ignore locally shadowed require functions and type-only declarations.
+
 ## 0.3.2
 
 ### Patch Changes
