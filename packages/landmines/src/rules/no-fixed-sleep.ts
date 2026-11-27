@@ -490,6 +490,20 @@ export const noFixedSleep = defineRule({
           helperCalls.push([node, argument.callee.name]);
         }
       },
+      ReturnStatement(node) {
+        if (
+          node.argument &&
+          isSleep(node.argument) &&
+          inTestBody(node, runNow, isStory)
+        ) {
+          sleeps.push(node.argument);
+        }
+      },
+      ArrowFunctionExpression(node) {
+        if (isSleep(node.body) && inTestBody(node.body, runNow, isStory)) {
+          sleeps.push(node.body);
+        }
+      },
       "Program:exit"(program) {
         for (const [node, name] of helperCalls) {
           const value = helpers.get(name);
