@@ -148,6 +148,60 @@ function calleeName(node: ESTree.Node) {
     : undefined;
 }
 
+function fakeTimerScope(
+  node: ESTree.Node,
+  runNow: ReadonlySet<string>,
+  isStory: boolean,
+) {
+  let current = node;
+  let sharedSetup = false;
+
+  while (current.type !== "Program") {
+    const call =
+      current.type === "ArrowFunctionExpression" ||
+      current.type === "FunctionExpression"
+        ? current.parent
+        : null;
+
+    if (isStoryPlay(call, isStory)) {
+      return current;
+    }
+
+    const name =
+      call?.type === "CallExpression" ? calleeRoot(call.callee) : undefined;
+
+    const member =
+      call?.type === "CallExpression" && call.callee.type === "MemberExpression"
+        ? calleeName(call.callee)
+        : undefined;
+
+    if (
+      member !== undefined &&
+      (defaultRunNow.includes(member) || runNow.has(member))
+    ) {
+      current = current.parent;
+
+      continue;
+    }
+
+    if (sharedSetup) {
+      if (name === "describe" || name === "suite") {
+        return current;
+      }
+    } else if (testCallees.has(name ?? "")) {
+      if (name === "beforeEach" || name === "beforeAll") {
+        sharedSetup = true;
+      } else {
+        return current;
+      }
+    }
+
+    current = current.parent;
+  }
+
+  return current;
+}
+
 function isStoryPlay(node: ESTree.Node | null | undefined, isStory: boolean) {
   if (!isStory || node?.type !== "Property" || node.computed) {
     return false;
@@ -338,11 +392,11 @@ export const noFixedSleep = defineRule({
     const runNow = new Set(options?.runNow ?? defaultRunNow);
     const isStory = storyFile.test(context.filename.replaceAll("\\", "/"));
     const sleeps: ESTree.Node[] = [];
+    const fakeTimers = new Set<ESTree.Node>();
     const blockingSleeps: ESTree.Node[] = [];
     const timedWaits: ESTree.Node[] = [];
     const helpers = new Map<string, ESTree.Node>();
     const helperCalls: [ESTree.Node, string][] = [];
-    let fakeTimers = false;
 
     function recordHelper(name: string, node: ESTree.Node | null | undefined) {
       const value = returned(node);
@@ -371,13 +425,27 @@ export const noFixedSleep = defineRule({
       );
     }
 
+    function usesFakeTimers(node: ESTree.Node) {
+      let current: ESTree.Node | null = node;
+
+      while (current) {
+        if (fakeTimers.has(current)) {
+          return true;
+        }
+
+        current = current.parent;
+      }
+
+      return false;
+    }
+
     return {
       CallExpression(node) {
         if (
           isMember(node.callee, "vi", "useFakeTimers") ||
           isMember(node.callee, "jest", "useFakeTimers")
         ) {
-          fakeTimers = true;
+          fakeTimers.add(fakeTimerScope(node, runNow, isStory));
         }
 
         if (isTimedWait(node)) {
@@ -448,7 +516,11 @@ export const noFixedSleep = defineRule({
         reportAllowed(
           context,
           program,
-          [...(fakeTimers ? [] : sleeps), ...blockingSleeps, ...timedWaits],
+          [
+            ...sleeps.filter((node) => !usesFakeTimers(node)),
+            ...blockingSleeps,
+            ...timedWaits,
+          ],
           "sleep",
           undefined,
           (node) => (timedWaits.includes(node) ? "timedWait" : "sleep"),
