@@ -112,6 +112,92 @@ function playwrightImport(source: SourceCode, identifier: ESTree.Node) {
   );
 }
 
+function testIdentifier(source: SourceCode, node: ESTree.Node) {
+  return (
+    node.type === "Identifier" &&
+    testFunctions.has(node.name) &&
+    testBinding(source, node)
+  );
+}
+
+function testInfoParameter(source: SourceCode, node: ESTree.Node) {
+  if (node.type !== "Identifier") {
+    return false;
+  }
+
+  const variable = variableOf(source, node, node.name);
+  const [definition] = variable?.defs ?? [];
+
+  if (variable?.defs.length !== 1 || definition?.type !== "Parameter") {
+    return false;
+  }
+
+  const fn = definition.node;
+
+  if (
+    (fn.type !== "ArrowFunctionExpression" &&
+      fn.type !== "FunctionExpression") ||
+    fn.params[1] !== definition.name ||
+    fn.parent.type !== "CallExpression" ||
+    !fn.parent.arguments.includes(fn)
+  ) {
+    return false;
+  }
+
+  const { callee } = fn.parent;
+  const member = memberName(callee);
+
+  if (callee.type === "Identifier") {
+    return testIdentifier(source, callee);
+  }
+
+  return (
+    callee.type === "MemberExpression" &&
+    member !== null &&
+    member !== "each" &&
+    member !== "for" &&
+    member !== "extend" &&
+    testIdentifier(source, callee.object)
+  );
+}
+
+function playwrightTimeoutTarget(
+  source: SourceCode,
+  node: ESTree.CallExpression,
+) {
+  const { callee } = node;
+  const name = memberName(callee);
+
+  if (
+    callee.type !== "MemberExpression" ||
+    (name !== "setTimeout" && name !== "slow")
+  ) {
+    return false;
+  }
+
+  const [first] = node.arguments;
+
+  if (
+    name === "slow" &&
+    (first?.type === "TemplateLiteral" ||
+      (first?.type === "Literal" && typeof first.value === "string"))
+  ) {
+    return false;
+  }
+
+  const { object } = callee;
+
+  if (object.type === "CallExpression") {
+    return (
+      object.callee.type === "MemberExpression" &&
+      memberName(object.callee) === "info" &&
+      testIdentifier(source, object.callee.object)
+    );
+  }
+
+  return testIdentifier(source, object) || testInfoParameter(source, object);
+}
+
 function zero(node: ESTree.Node | undefined) {
   return node?.type === "Literal" && node.value === 0;
 }
@@ -242,8 +328,24 @@ export const noFlakeMasking = defineRule({
           const root = rootIdentifier(callee);
 
           if (root !== null && testBinding(source, root)) {
-            inspectRetries(node.arguments[0]);
+            const [options] = node.arguments;
+
+            inspectRetries(options);
+
+            if (options?.type === "ObjectExpression") {
+              for (const property of options.properties) {
+                if (keyName(property) === "timeout") {
+                  timeouts.push(property);
+                }
+              }
+            }
           }
+
+          return;
+        }
+
+        if (playwrightTimeoutTarget(source, node)) {
+          timeouts.push(node);
 
           return;
         }
