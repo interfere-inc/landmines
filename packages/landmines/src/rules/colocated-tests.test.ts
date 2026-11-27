@@ -182,6 +182,28 @@ test.each(["cloudflare:workers", "cloudflare:test"])(
   },
 );
 
+test("retains a test whose subjects include a module outside src", () => {
+  write("api/report.ts", "export const report = true;");
+
+  expect(
+    lint(
+      "src/contract/report.test.ts",
+      "import { report } from '../../api/report'; import { admit } from '../recovery/admission'; export { report, admit };",
+    ).status,
+  ).toBe(0);
+});
+
+test("still finds the owner when the only module outside src is a package harness", () => {
+  write("test/setup.test-utils.ts", "export const setup = true;");
+
+  expect(
+    lint(
+      "src/publication/admission.test.ts",
+      "import { setup } from '../../test/setup.test-utils'; import { admit } from '../recovery/admission'; export { setup, admit };",
+    ).status,
+  ).toBe(1);
+});
+
 test("does not treat an application entry point as a module owner", () => {
   expect(
     lint(
