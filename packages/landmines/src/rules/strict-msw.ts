@@ -118,17 +118,14 @@ function serverFactory(source: SourceCode, node: ESTree.Node) {
 }
 
 function keyName(property: ESTree.ObjectProperty) {
-  if (property.computed) {
-    return null;
-  }
-
-  if (property.key.type === "Identifier") {
+  if (!property.computed && property.key.type === "Identifier") {
     return property.key.name;
   }
 
   return property.key.type === "Literal" &&
-    typeof property.key.value === "string"
-    ? property.key.value
+    (typeof property.key.value === "string" ||
+      typeof property.key.value === "number")
+    ? String(property.key.value)
     : null;
 }
 
@@ -173,24 +170,49 @@ function strictValue(source: SourceCode, node: ESTree.Node) {
   );
 }
 
-function strict(source: SourceCode, node: ESTree.Node | undefined) {
+function invalidateOptions(options: Map<string, boolean>) {
+  for (const name of options.keys()) {
+    options.set(name, false);
+  }
+}
+
+function applyOptions(
+  source: SourceCode,
+  node: ESTree.Node | undefined,
+  options: Map<string, boolean>,
+) {
   if (node?.type !== "ObjectExpression") {
-    return false;
+    invalidateOptions(options);
+
+    return;
   }
 
-  const unhandled = node.properties.filter(
-    (property) =>
-      property.type === "Property" &&
-      unhandledOptions.has(keyName(property) ?? ""),
-  );
+  for (const property of node.properties) {
+    if (property.type === "SpreadElement") {
+      applyOptions(source, property.argument, options);
 
-  return (
-    unhandled.length > 0 &&
-    unhandled.every(
-      (property) =>
-        property.type === "Property" && strictValue(source, property.value),
-    )
-  );
+      continue;
+    }
+
+    const name = keyName(property);
+
+    if (name === null) {
+      invalidateOptions(options);
+    } else if (unhandledOptions.has(name)) {
+      options.set(
+        name,
+        property.kind === "init" && strictValue(source, property.value),
+      );
+    }
+  }
+}
+
+function strict(source: SourceCode, node: ESTree.Node | undefined) {
+  const options = new Map<string, boolean>();
+
+  applyOptions(source, node, options);
+
+  return options.size > 0 && [...options.values()].every(Boolean);
 }
 
 export const strictMsw = defineRule({

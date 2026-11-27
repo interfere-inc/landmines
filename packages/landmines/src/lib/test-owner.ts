@@ -9,23 +9,99 @@ import {
   sep,
 } from "node:path";
 import { ResolverFactory } from "oxc-resolver";
+import type { NapiResolveOptions } from "oxc-resolver";
 import { parse } from "@babel/parser";
-import { traverseFast } from "@babel/types";
+import {
+  getBindingIdentifiers,
+  isFunction,
+  isScopable,
+  traverse,
+} from "@babel/types";
+import type { Node } from "@babel/types";
+
+export interface ModuleImport {
+  specifier: string;
+  mode: "import" | "require";
+}
 
 const companion = /\.(?:test|e2e|fixture|test-utils)\./u;
 const testDirectories = new Set(["test", "tests", "__tests__"]);
 
-const resolver = new ResolverFactory({
+const resolverOptions = {
   tsconfig: "auto",
   symlinks: false,
-  conditionNames: ["monorepo", "import", "node", "default"],
   extensions: [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"],
   extensionAlias: {
     ".js": [".ts", ".tsx", ".js"],
     ".mjs": [".mts", ".mjs"],
     ".cjs": [".cts", ".cjs"],
   },
-});
+} satisfies NapiResolveOptions;
+
+const resolvers = {
+  import: new ResolverFactory({
+    ...resolverOptions,
+    conditionNames: ["monorepo", "import", "node", "default"],
+  }),
+  require: new ResolverFactory({
+    ...resolverOptions,
+    conditionNames: ["monorepo", "require", "node", "default"],
+  }),
+};
+
+function requireBindings(file: Node) {
+  const scopes = new WeakSet<Node>();
+
+  traverse(file, (node, ancestors) => {
+    if (isFunction(node)) {
+      if (
+        node.params.some((parameter) =>
+          Object.hasOwn(getBindingIdentifiers(parameter), "require"),
+        ) ||
+        (node.type === "FunctionExpression" && node.id?.name === "require")
+      ) {
+        scopes.add(node);
+      }
+    } else if (
+      (node.type === "CatchClause" &&
+        node.param &&
+        Object.hasOwn(getBindingIdentifiers(node.param), "require")) ||
+      (node.type === "ClassExpression" && node.id?.name === "require") ||
+      node.type === "WithStatement"
+    ) {
+      scopes.add(node);
+    }
+
+    if (
+      !(
+        node.type === "VariableDeclaration" ||
+        node.type === "FunctionDeclaration" ||
+        node.type === "ClassDeclaration" ||
+        (node.type === "ImportDeclaration" && node.importKind !== "type") ||
+        (node.type === "TSImportEqualsDeclaration" &&
+          node.importKind !== "type")
+      ) ||
+      !Object.hasOwn(getBindingIdentifiers(node, false, true), "require")
+    ) {
+      return;
+    }
+
+    const owner = ancestors.findLast(({ node: parent }) =>
+      node.type === "VariableDeclaration" && node.kind === "var"
+        ? isFunction(parent) ||
+          parent.type === "Program" ||
+          parent.type === "StaticBlock" ||
+          parent.type === "TSModuleBlock"
+        : isScopable(parent),
+    );
+
+    if (owner) {
+      scopes.add(owner.node);
+    }
+  });
+
+  return scopes;
+}
 
 export function packageDirectory(directory: string) {
   let current = directory;
@@ -44,7 +120,7 @@ export function packageDirectory(directory: string) {
 }
 
 export function fileImports(filename: string) {
-  const imports: string[] = [];
+  const imports: ModuleImport[] = [];
 
   let file;
 
@@ -61,7 +137,9 @@ export function fileImports(filename: string) {
     throw error;
   }
 
-  traverseFast(file, (node) => {
+  const bindings = requireBindings(file);
+
+  traverse(file, (node, ancestors) => {
     if (node.type === "ImportDeclaration") {
       const typeOnly =
         node.importKind === "type" ||
@@ -73,7 +151,7 @@ export function fileImports(filename: string) {
           ));
 
       if (!typeOnly) {
-        imports.push(node.source.value);
+        imports.push({ specifier: node.source.value, mode: "import" });
       }
     } else if (
       (node.type === "ExportNamedDeclaration" ||
@@ -91,13 +169,31 @@ export function fileImports(filename: string) {
         );
 
       if (!typeOnly) {
-        imports.push(node.source.value);
+        imports.push({ specifier: node.source.value, mode: "import" });
       }
     } else if (
       node.type === "ImportExpression" &&
       node.source.type === "StringLiteral"
     ) {
-      imports.push(node.source.value);
+      imports.push({ specifier: node.source.value, mode: "import" });
+    } else if (
+      node.type === "CallExpression" &&
+      node.callee.type === "Identifier" &&
+      node.callee.name === "require" &&
+      node.arguments.length === 1 &&
+      node.arguments[0]?.type === "StringLiteral" &&
+      !ancestors.some(({ node: parent }) => bindings.has(parent))
+    ) {
+      imports.push({ specifier: node.arguments[0].value, mode: "require" });
+    } else if (
+      node.type === "TSImportEqualsDeclaration" &&
+      node.importKind !== "type" &&
+      node.moduleReference.type === "TSExternalModuleReference"
+    ) {
+      imports.push({
+        specifier: node.moduleReference.expression.value,
+        mode: "require",
+      });
     }
   });
 
@@ -144,10 +240,10 @@ function canonicalFilename(filename: string) {
 function localModules(
   importer: string,
   directory: string,
-  specifiers: readonly string[],
+  specifiers: readonly ModuleImport[],
 ) {
-  return specifiers.flatMap((specifier) => {
-    const target = resolver.resolveFileSync(importer, specifier).path;
+  return specifiers.flatMap(({ specifier, mode }) => {
+    const target = resolvers[mode].resolveFileSync(importer, specifier).path;
 
     if (
       !target?.startsWith(`${directory}${sep}`) ||
@@ -164,7 +260,7 @@ function localModules(
 
 export function packageSources(
   testFilename: string,
-  imports: readonly string[],
+  imports: readonly ModuleImport[],
 ) {
   const filename = realpathSync(testFilename);
   const directory = packageDirectory(dirname(filename));
@@ -179,7 +275,10 @@ export function packageSources(
   );
 }
 
-export function testOwner(testFilename: string, imports: readonly string[]) {
+export function testOwner(
+  testFilename: string,
+  imports: readonly ModuleImport[],
+) {
   const filename = canonicalFilename(testFilename);
   const directory = packageDirectory(dirname(filename));
   const source = join(directory, "src");
@@ -189,7 +288,7 @@ export function testOwner(testFilename: string, imports: readonly string[]) {
   const inferredOwners = new Set<string>();
   const ambiguousOwners = new Set<string>();
 
-  function resolve(importer: string, specifiers: readonly string[]) {
+  function resolve(importer: string, specifiers: readonly ModuleImport[]) {
     return localModules(importer, directory, specifiers);
   }
 

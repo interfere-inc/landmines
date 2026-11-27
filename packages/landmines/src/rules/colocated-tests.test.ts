@@ -211,6 +211,128 @@ test("finds dynamically imported subjects", () => {
   ).toBe(1);
 });
 
+test.each(["cjs", "cts"])(
+  "finds required subjects in %s tests",
+  (extension) => {
+    const result = lint(
+      `test/admission.test.${extension}`,
+      "const { admit } = require('../src/recovery/admission'); module.exports = admit;",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("src/recovery");
+  },
+);
+
+test("accepts a colocated CommonJS test", () => {
+  expect(
+    lint(
+      "src/recovery/admission.test.cjs",
+      "const { admit } = require('./admission'); module.exports = admit;",
+    ).status,
+  ).toBe(0);
+});
+
+test("resolves the require condition of package exports", () => {
+  write(
+    "package.json",
+    JSON.stringify({
+      name: "@example/recovery",
+      exports: {
+        "./subject": {
+          import: "./src/publication/publish.ts",
+          require: "./src/recovery/admission.ts",
+        },
+      },
+    }),
+  );
+
+  const result = lint(
+    "test/admission.test.cjs",
+    "module.exports = require('@example/recovery/subject');",
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain("src/recovery");
+  expect(result.stdout).not.toContain("src/publication");
+});
+
+test("finds TypeScript import-equals subjects", () => {
+  expect(
+    lint(
+      "test/admission.test.cts",
+      "import subject = require('../src/recovery/admission'); export = subject;",
+    ).status,
+  ).toBe(1);
+});
+
+test.each([
+  "function run(require) { return require('../src/recovery/admission'); } module.exports = run;",
+  "const require = (name) => name; module.exports = require('../src/recovery/admission');",
+  "require.resolve('../src/recovery/admission');",
+  "const subject = '../src/recovery/admission'; require(subject);",
+  "import type Subject = require('../src/recovery/admission');",
+])("ignores non-module require evidence: %s", (code) => {
+  expect(lint("test/admission.test.cts", code).status).toBe(0);
+});
+
+test("retains cross-feature CommonJS integration tests", () => {
+  expect(
+    lint(
+      "test/scenario.test.cjs",
+      "require('../src/recovery/admission'); require('../src/publication/publish');",
+    ).status,
+  ).toBe(0);
+});
+
+test.each([
+  "module.exports = require('./admission');",
+  "import subject = require('./admission'); export = subject;",
+])("follows CommonJS source companions: %s", (code) => {
+  write("src/recovery/setup.fixture.cts", code);
+
+  const result = lint(
+    "test/scenario.test.cjs",
+    "module.exports = require('../src/recovery/setup.fixture.cts');",
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain("src/recovery");
+});
+
+test.each([
+  "function run(require) { return require('./admission'); } module.exports = run;",
+  "const { require } = { require: (name) => name }; module.exports = require('./admission');",
+  "function run() { require('./admission'); var require; } module.exports = run;",
+  "try {} catch (require) { require('./admission'); }",
+  "{ const require = (name) => name; require('./admission'); }",
+  "module.exports = function require() { return require('./admission'); };",
+])("ignores shadowed require in a companion: %s", (code) => {
+  write("src/recovery/setup.fixture.cjs", code);
+
+  expect(
+    lint(
+      "test/scenario.test.ts",
+      "import setup from '../src/recovery/setup.fixture.cjs'; export { setup };",
+    ).status,
+  ).toBe(0);
+});
+
+test("keeps unshadowed companion requires outside a local binding", () => {
+  write(
+    "src/recovery/setup.fixture.cjs",
+    "function run(require) { return require('../publication/publish'); } module.exports = { run, subject: require('./admission') };",
+  );
+
+  const result = lint(
+    "test/scenario.test.ts",
+    "import setup from '../src/recovery/setup.fixture.cjs'; export { setup };",
+  );
+
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain("src/recovery");
+});
+
 test("ignores type-only imports when identifying the subject", () => {
   expect(
     lint(

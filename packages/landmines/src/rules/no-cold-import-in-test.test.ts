@@ -1,7 +1,15 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Linter } from "eslint";
 import type { ESLint } from "eslint";
-import { expect, test } from "vitest";
+import { afterAll, expect, test } from "vitest";
 import { noColdImportInTest } from "./no-cold-import-in-test";
+import { lintBatch, ruleConfiguration } from "./rule.test-utils";
+
+const directory = mkdtempSync(join(tmpdir(), "no-cold-import-in-test-"));
+
+afterAll(() => rmSync(directory, { recursive: true, force: true }));
 
 const linter = new Linter();
 
@@ -28,23 +36,37 @@ test.each([
   'async function boot() { return import("./a.js"); } async function load() { return boot(); } test("x", async () => { await load(); });',
   'test("x", async () => { await load(); }); async function load() { return import("./a.js"); }',
   'describe("d", () => { test("x", async () => { await import("./a.js"); }); });',
-  'beforeAll(async () => { await import("./b.js"); }); test("x", async () => { await import("./a.js"); });',
 ])("reports a cold dynamic import only a test reaches: %s", (code) => {
   expect(messages(code)).toStrictEqual(["cold"]);
+});
+
+test.each([
+  'beforeAll(async () => { await import("./instrumentation.js"); }); test("x", async () => { await import("./instrumentation.js"); });',
+  'describe("d", () => { beforeAll(async () => { await import("./a.js"); }); test("x", async () => { await import("./a.js"); }); });',
+  'test.beforeAll(async () => { await import("./a.js"); }); test("x", async () => { await import("./a.js"); });',
+  'beforeEach(async () => { await import("./a.js"); }); test("x", () => { expect(1).toBe(1); });',
+  'afterEach(async () => { await import("./a.js"); });',
+  'test("x", async () => { onTestFinished(async () => { await import("./a.js"); }); });',
+])(
+  "reports the first cold import a hook makes directly, under its own message: %s",
+  (code) => {
+    expect(messages(code)).toStrictEqual(["coldHook"]);
+  },
+);
+
+test("reports a hook's own cold import and a different one a test reaches", () => {
+  const code =
+    'beforeAll(async () => { await import("./b.js"); }); test("x", async () => { await import("./a.js"); });';
+
+  expect(messages(code)).toStrictEqual(["coldHook", "cold"]);
 });
 
 test.each([
   'await import("./instrumentation.js"); test("x", async () => { await import("./instrumentation.js"); });',
   'import { register } from "./instrumentation.js"; test("x", async () => { await import("./instrumentation.js"); });',
   'import "./instrumentation"; test("x", async () => { await import("./instrumentation.js"); });',
-  'beforeAll(async () => { await import("./instrumentation.js"); }); test("x", async () => { await import("./instrumentation.js"); });',
-  'describe("d", () => { beforeAll(async () => { await import("./a.js"); }); test("x", async () => { await import("./a.js"); }); });',
-  'test.beforeAll(async () => { await import("./a.js"); }); test("x", async () => { await import("./a.js"); });',
   'async function load() { vi.resetModules(); return import("./a.js"); } beforeAll(async () => { await load(); }); test("x", async () => { await load(); });',
   'async function load() { return import("./a.js"); } await load(); test("x", async () => { await load(); });',
-  'beforeEach(async () => { await import("./a.js"); }); test("x", () => { expect(1).toBe(1); });',
-  'afterEach(async () => { await import("./a.js"); });',
-  'test("x", async () => { onTestFinished(async () => { await import("./a.js"); }); });',
   'test("x", async ({ name }) => { await import(name); });',
   'async function load() { return import("./a.js"); } export const loaded = load;',
 ])("allows warm, hook and non-test imports: %s", (code) => {
@@ -68,4 +90,44 @@ test("enforces the exact allowlisted count", () => {
       .verify("", options, { filename: "fixture.js" })
       .map(({ messageId }) => messageId),
   ).toStrictEqual(["stale"]);
+});
+
+const configuration = ruleConfiguration(
+  directory,
+  "testing/no-cold-import-in-test",
+);
+
+test.each(
+  lintBatch(
+    [
+      'import type { Data } from "./a.js"; test("x", async () => { await import("./a.js"); });',
+      'import { type Data } from "./a.js"; test("x", async () => { await import("./a.js"); });',
+      'import { type Data, type Row } from "./a.js"; test("x", async () => { await import("./a.js"); });',
+    ],
+    false,
+    "testing",
+    configuration,
+    "fixture.test.ts",
+  ),
+)(
+  "reports a load that only an erased type import precedes: %s",
+  (_, result) => {
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-cold-import-in-test");
+  },
+);
+
+test.each(
+  lintBatch(
+    [
+      'import { type Data, load } from "./a.js"; test("x", async () => { await import("./a.js"); });',
+      'import "./a.js"; test("x", async () => { await import("./a.js"); });',
+    ],
+    false,
+    "testing",
+    configuration,
+    "fixture.test.ts",
+  ),
+)("keeps a type import that also loads a value warm: %s", (_, result) => {
+  expect(result.status).toBe(0);
 });
