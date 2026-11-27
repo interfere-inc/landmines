@@ -236,9 +236,9 @@ harnesses:
 `no-shared-signal`,
 `no-conditional-expect`, `no-parameter-branch`, `no-imported-mutation`,
 `no-cold-start-in-test`, `no-cold-import-in-test`,
-`no-styling-class-assertion` and `declared-test-inputs` accept a per-file
-allowlist with an exact count, so you can adopt them in an existing
-codebase and ratchet down:
+`no-styling-class-assertion`, `no-test-doubles` and `declared-test-inputs`
+accept a per-file allowlist with an exact count, so you can adopt them in an
+existing codebase and ratchet down:
 
 ```json
 {
