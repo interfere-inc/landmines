@@ -1,5 +1,13 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { basename, dirname, extname, join, relative, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  extname,
+  join,
+  relative,
+  resolve as resolvePath,
+  sep,
+} from "node:path";
 import { ResolverFactory } from "oxc-resolver";
 import type { NapiResolveOptions } from "oxc-resolver";
 import { parse } from "@babel/parser";
@@ -201,6 +209,34 @@ function companionDirectory(filename: string, source: string) {
     : join(source, ...parts.slice(0, support));
 }
 
+function canonicalFilename(filename: string) {
+  let current = resolvePath(filename);
+  const missing: string[] = [];
+
+  while (true) {
+    try {
+      return join(realpathSync(current), ...missing.toReversed());
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !("code" in error) ||
+        error.code !== "ENOENT"
+      ) {
+        throw error;
+      }
+
+      const parent = dirname(current);
+
+      if (parent === current) {
+        throw error;
+      }
+
+      missing.push(basename(current));
+      current = parent;
+    }
+  }
+}
+
 function localModules(
   importer: string,
   directory: string,
@@ -243,7 +279,7 @@ export function testOwner(
   testFilename: string,
   imports: readonly ModuleImport[],
 ) {
-  const filename = realpathSync(testFilename);
+  const filename = canonicalFilename(testFilename);
   const directory = packageDirectory(dirname(filename));
   const source = join(directory, "src");
   const visited = new Set<string>([filename]);
@@ -376,7 +412,9 @@ export function testOwner(
 }
 
 export function isOwnedTest(filename: string, owner: string) {
-  const location = relative(owner, dirname(realpathSync(filename))).split(sep);
+  const location = relative(owner, dirname(canonicalFilename(filename))).split(
+    sep,
+  );
 
   return location[0] === "" || testDirectories.has(location[0] ?? "");
 }
